@@ -145,7 +145,11 @@ const syncStatus = new Map<
 // ---------------------------------------------------------------------------
 
 app.get("/health", (c) => {
-  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+  return c.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+  });
 });
 
 // List all regattas
