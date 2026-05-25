@@ -607,7 +607,7 @@ Do these in roughly this order. Items 2, 3, and 6 are already done — start wit
 
 ## Pending / In Progress
 
-- **rename/scrape-to-sync branch**: Background agent renaming all "scrape" → "sync" terminology across codebase (`src/scraper/` → `src/syncer/`, `scrape-scheduler.ts` → `sync-scheduler.ts`, etc.). Merge into main and redeploy when complete.
+- ~~**rename/scrape-to-sync branch**~~ ✅ MERGED — All "scrape" → "sync" terminology renamed. `src/scraper/` → `src/syncer/`, `scrape-scheduler.ts` → `sync-scheduler.ts`, all routes/logs/comments updated. Redeploy to Railway to pick up the route rename (`/api/admin/scrape` → `/api/admin/sync`).
 - **startSyncScheduler() wiring**: Intentionally left out of `index.ts`. Add after first few manual syncs confirm DB stability.
 - **Strategy reminder**: Do NOT email api@regattacentral.com to request API access before having traction. Build first, launch to BRC parents, get real users, then approach RC from a position of strength.
 
