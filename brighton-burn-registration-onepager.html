@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brighton Burn — In-House Registration Proposal</title>
+<style>
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #1a1a1a;
+    background: #fff;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 28px;
+  }
+  .header {
+    border-bottom: 3px solid #1a3a5c;
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+  }
+  .header h1 {
+    font-size: 20px;
+    color: #1a3a5c;
+    margin: 0 0 2px 0;
+    letter-spacing: 0.5px;
+  }
+  .header .subtitle {
+    font-size: 12px;
+    color: #555;
+    margin: 0;
+  }
+  .meta {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+  }
+  h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #1a3a5c;
+    border-left: 4px solid #c8a84b;
+    padding-left: 8px;
+    margin: 20px 0 8px 0;
+  }
+  .two-col {
+    display: flex;
+    gap: 24px;
+  }
+  .col {
+    flex: 1;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 6px 0;
+  }
+  th {
+    background: #1a3a5c;
+    color: #fff;
+    padding: 5px 8px;
+    text-align: left;
+    font-weight: normal;
+    letter-spacing: 0.3px;
+  }
+  td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  tr:nth-child(even) td { background: #f7f7f7; }
+  .highlight td:first-child { font-weight: bold; color: #1a3a5c; }
+  .green { color: #2a7a2a; font-weight: bold; }
+  .red { color: #a02020; }
+  ul {
+    margin: 4px 0;
+    padding-left: 18px;
+  }
+  li {
+    margin-bottom: 3px;
+  }
+  .concern-block {
+    background: #f4f7fb;
+    border-left: 3px solid #1a3a5c;
+    padding: 7px 10px;
+    margin: 6px 0;
+    font-size: 12px;
+  }
+  .concern-block strong {
+    color: #1a3a5c;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    background: #c8a84b;
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 4px;
+    letter-spacing: 0.3px;
+  }
+  .tag.open { background: #888; }
+  .tag.done { background: #2a7a2a; }
+  .footer {
+    margin-top: 22px;
+    padding-top: 10px;
+    border-top: 1px solid #ddd;
+    font-size: 11px;
+    color: #888;
+    display: flex;
+    justify-content: space-between;
+  }
+  .action-box {
+    background: #1a3a5c;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-top: 16px;
+    font-size: 12px;
+  }
+  .action-box strong {
+    font-size: 13px;
+    display: block;
+    margin-bottom: 4px;
+    color: #c8a84b;
+  }
+  .action-box ul {
+    margin: 4px 0 0 0;
+    color: #e8e8e8;
+  }
+  .action-box li { margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Brighton Burn — In-House Registration Proposal</h1>
+  <p class="subtitle">Brighton Rowing Club &nbsp;|&nbsp; Board Discussion Document &nbsp;|&nbsp; February 28, 2026 Event</p>
+  <p class="meta">Prepared for committee meeting &nbsp;·&nbsp; Proposed dates: June 10 or June 24</p>
+</div>
+
+<!-- ROW 1: two columns -->
+<div class="two-col">
+
+  <div class="col">
+    <h2>The Problem: What RC Costs Us</h2>
+    <p style="font-size:12px;margin:4px 0 8px;">Regatta Central handles registration for the Brighton Burn, but the overhead is significant for a community fundraising event.</p>
+    <table>
+      <tr><th>Fee Component</th><th>Rate</th></tr>
+      <tr><td>Platform / admin fee</td><td class="red">~8% per entry</td></tr>
+      <tr><td>Credit card processing</td><td class="red">~3% per transaction</td></tr>
+      <tr><td><strong>Estimated combined overhead</strong></td><td class="red"><strong>~10–11%</strong></td></tr>
+    </table>
+    <p style="font-size:11px;color:#555;margin:5px 0 0;">On a $30 entry × 200 participants = <span class="red"><strong>~$600+ to Regatta Central</strong></span> annually.</p>
+
+    <h2>The Opportunity: Own Our Registration</h2>
+    <table>
+      <tr><th>Processor</th><th>Rate</th><th>Cost / 200 entries @ $30</th></tr>
+      <tr><td>Regatta Central (est.)</td><td>~10–11%</td><td class="red">~$660</td></tr>
+      <tr><td>Stripe (nonprofit 501c3)</td><td>2.2% + $0.30</td><td class="green">~$192</td></tr>
+      <tr><td>PayPal (nonprofit)</td><td>1.99% + $0.49</td><td class="green">~$218</td></tr>
+      <tr class="highlight"><td>Zeffy (nonprofit platform)</td><td>$0 fees</td><td class="green"><strong>$0</strong></td></tr>
+    </table>
+    <p style="font-size:11px;color:#555;margin:5px 0 0;">Stripe requires EIN + IRS 501(c)(3) letter. Zeffy is free, funded by optional donor tips at checkout.</p>
+  </div>
+
+  <div class="col">
+    <h2>Addressing Key Concerns</h2>
+
+    <div class="concern-block">
+      <strong>⚠️ Regatta Central Advertising / Visibility</strong>
+      RC may de-list the event if we don't use their registration. However:
+      <ul>
+        <li>The Brighton Burn draws a <em>local, community</em> audience — not primarily sourced from RC event calendars</li>
+        <li>We can advertise via BRC website, social media, school networks, and rowing community emails</li>
+        <li>We pay RC more in fees than we would ever lose in registrations from reduced visibility</li>
+        <li><em>Recommendation: Accept the risk. Proceed independently.</em></li>
+      </ul>
+    </div>
+
+    <div class="concern-block">
+      <strong>⚠️ Insurance</strong>
+      <ul>
+        <li>The <strong>team (BRC) insures the event</strong> directly — not through individual USRowing membership</li>
+        <li>USRowing individual waivers are <strong>not</strong> our mechanism here</li>
+        <li>Confirm current event liability policy covers independently-registered participants</li>
+      </ul>
+    </div>
+
+    <div class="concern-block">
+      <strong>✅ Online Waiver <span class="tag open">Action Item → Amy</span></strong>
+      Build a digital waiver into the registration form. Amy to review Regatta Central's current waiver language as a starting point and draft a BRC version. Can be implemented as a required checkbox with full waiver text displayed before payment.
+    </div>
+  </div>
+
+</div>
+
+<!-- ROW 2 -->
+<div class="two-col">
+
+  <div class="col">
+    <h2>Registration Form Requirements</h2>
+    <ul style="font-size:12px;">
+      <li><strong>Participant info:</strong> Name, age, school/team affiliation (optional — see team naming below)</li>
+      <li><strong>Age handicap:</strong> Auto-calculate handicap based on age at time of entry; apply to reported times automatically</li>
+      <li><strong>Heat assignment:</strong> Assigned or selected at registration</li>
+      <li><strong>Race goal:</strong> Participant enters their target time/goal</li>
+      <li><strong>Relay entry:</strong>
+        <ul>
+          <li>Must consist of <strong>2 males + 2 females</strong></li>
+          <li>Collect all four participant names</li>
+          <li>Custom relay team name</li>
+        </ul>
+      </li>
+      <li><strong>Team name (optional):</strong> Participants may race under a custom team name instead of their school — important for college athletes (NCAA compliance) and high schoolers eligible for future team awards</li>
+      <li><strong>Waiver acceptance:</strong> Required checkbox before payment</li>
+    </ul>
+  </div>
+
+  <div class="col">
+    <h2>Recommended Platform Approach</h2>
+    <p style="font-size:12px;margin:4px 0 6px;">BRC's site runs on <strong>Wix</strong>. The path of least resistance:</p>
+    <ul style="font-size:12px;">
+      <li><strong>Wix Events + Stripe</strong> (nonprofit rate) — native integration, ~2–4 hours to set up, data stored in Wix CRM, auto-confirmation emails</li>
+      <li><strong>OR: Zeffy embed</strong> — zero processing fees, embed form into existing event page, slightly less native but fully functional</li>
+      <li>All registrant data exportable to Google Sheets for day-of check-in</li>
+    </ul>
+
+    <h2>Cost: The Wix Site Itself</h2>
+    <p style="font-size:12px;margin:4px 0 6px;">BRC is likely paying <strong>$350–$470/year</strong> at standard pricing. A <strong>70% nonprofit discount</strong> is available via TechSoup — potentially cutting cost to <strong>~$100–$140 for two years</strong>. Check if this has been claimed.</p>
+
+    <h2>Open Questions for Committee</h2>
+    <ul style="font-size:12px;">
+      <li>Confirm BRC's 501(c)(3) and event insurance scope</li>
+      <li>Who owns the Wix account / can implement changes?</li>
+      <li>Have we applied for the TechSoup/Wix nonprofit discount?</li>
+      <li>Finalize entry fee structure and age handicap formula</li>
+      <li>Define "Team Awards" criteria (discussion deferred)</li>
+      <li>Amy: Draft waiver language before next meeting</li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="action-box">
+  <strong>Proposed Next Steps</strong>
+  <ul>
+    <li>Hold committee meeting: <strong>Wednesday, June 10 or June 24</strong> — confirm date with board</li>
+    <li>Amy drafts online waiver based on RC language before meeting</li>
+    <li>Designate a tech volunteer to prototype the Wix Events registration form</li>
+    <li>Confirm insurance coverage with BRC's carrier for self-managed registration</li>
+    <li>Decision: Stripe vs. Zeffy for payment processing</li>
+  </ul>
+</div>
+
+<div class="footer">
+  <span>Brighton Rowing Club &nbsp;·&nbsp; brightoncrew.org</span>
+  <span>Discussion draft — not for public distribution</span>
+</div>
+
+</body>
+</html>
