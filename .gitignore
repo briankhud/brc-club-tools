@@ -14,3 +14,21 @@
 # Environment / secrets
 .env
 *.env.local
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript build output
+dist/
+build/
+
+# Expo
+app/.expo/
+app/android/
+app/ios/
+
+# Test artifacts
+/tmp/cssra-*.pdf
