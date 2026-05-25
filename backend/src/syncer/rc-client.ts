@@ -272,10 +272,25 @@ export async function fetchRegattaOverview(jobId: string): Promise<Partial<RCReg
 
   const $ = cheerio.load(html);
 
-  // Extract title from <h1> or <title>
-  const name =
-    $("h1").first().text().trim() ||
-    $("title").text().replace("RegattaCentral", "").replace(/[-|]/, "").trim();
+  // The <title> tag is typically "Regatta Name - RegattaCentral" or
+  // "RegattaCentral - Regatta Name". Split on common separators and take
+  // the part that isn't the brand name.
+  const titleText = $("title").text().trim();
+  const titleName = titleText
+    .split(/\s*[-–|]\s*/)
+    .map((s) => s.trim())
+    .filter((s) => s && !s.toLowerCase().includes("regattacentral"))
+    .join(" - ")
+    .trim();
+
+  // Fallback: scan headings, skip the site-wide "RegattaCentral" brand header
+  const headingName =
+    $("h1, h2, h3")
+      .toArray()
+      .map((el) => $(el).text().trim())
+      .find((t) => t && !t.toLowerCase().includes("regattacentral")) ?? "";
+
+  const name = titleName || headingName || `Regatta ${jobId}`;
 
   return { job_id: jobId, name };
 }
