@@ -613,6 +613,46 @@ Do these in roughly this order. Items 2, 3, and 6 are already done — start wit
 
 ---
 
+## Infrastructure Backlog
+
+These are real engineering tasks that need doing before the project is production-solid, but are not blockers for the first regatta demo.
+
+### Dev / Production Environment Split
+
+**Problem:** Currently there is only one Railway environment (`production`). All test syncs, schema experiments, and code changes deploy directly against the live database. This is fine for a single developer in week 1 but will cause problems as soon as there are real users — a bad test sync could corrupt data parents are actively reading.
+
+**What to set up:**
+
+1. **Create a `dev` git branch**
+   ```bash
+   git checkout -b dev
+   git push origin dev
+   ```
+
+2. **Create a `development` environment in Railway**
+   - Railway dashboard → project → environment dropdown → "Create environment" → name it `development`
+   - Add a new PostgreSQL service to the `development` environment (separate DB from production)
+   - Add the backend service to `development`, connect it to the `dev` branch
+   - Set `DATABASE_URL` to the dev Postgres, a new `ADMIN_SECRET`, etc.
+   - Run `src/db/migrate.ts` against the dev DB to apply schema
+
+3. **Set up production auto-deploy from `main`**
+   - Railway dashboard → production environment → backend service → Settings → Source → Connect repo
+   - Root directory: `backend`, Branch: `main`
+   - Now `git push origin main` auto-deploys to production
+
+4. **Day-to-day workflow going forward:**
+   - All work happens on `dev` branch (or feature branches off `dev`)
+   - `git push origin dev` → auto-deploys to Railway development environment
+   - Test syncs, schema changes, and experiments run against the dev DB
+   - When ready to ship: `git merge dev → main`, push main → production auto-deploys
+   - Verify with: `curl .../health` and confirm `commit` SHA matches
+
+**Estimated time:** 30 minutes  
+**Unblocks:** Safe schema migrations, test syncs without risk to real users, proper CI discipline
+
+---
+
 ## Elevator Pitch
 
 RowDay is a mobile companion app for rowing regattas that gives parents, athletes, and coaches the experience they deserve: a real-time countdown to their rower's next heat, lane-by-lane heat sheets, and results that update automatically — all sourced live from Regatta Central's publicly available data. The official RC app has a 2.95-star rating and hasn't been meaningfully updated since August 2024, leaving thousands of rowing families staring at a slow, confusing website on a phone they're holding at the boathouse. RowDay fixes that in the same way Flighty fixed airline tracking — not by replacing the underlying infrastructure, but by building a beautiful, fast, human experience on top of it. We're starting with Brighton Rowing Club in Rochester, NY, proving the model at local regattas, and expanding to the 4,000 rowing clubs in the US and Canada from there.
