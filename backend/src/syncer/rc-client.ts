@@ -272,16 +272,16 @@ export async function fetchRegattaOverview(jobId: string): Promise<Partial<RCReg
 
   const $ = cheerio.load(html);
 
-  // The <title> tag is typically "Regatta Name - RegattaCentral" or
-  // "RegattaCentral - Regatta Name". Split on common separators and take
-  // the part that isn't the brand name.
+  // The <title> tag is typically "Regatta Name - Overview - RegattaCentral".
+  // Split on common separators, drop the RC brand and generic page-type tokens,
+  // take the first remaining part (the actual regatta name).
+  const RC_NOISE = /^(regattacentral|overview|events|clubs|entries|results|heat sheet)$/i;
   const titleText = $("title").text().trim();
   const titleName = titleText
     .split(/\s*[-–|]\s*/)
     .map((s) => s.trim())
-    .filter((s) => s && !s.toLowerCase().includes("regattacentral"))
-    .join(" - ")
-    .trim();
+    .filter((s) => s && !RC_NOISE.test(s))
+    .at(0) ?? "";
 
   // Fallback: scan headings, skip the site-wide "RegattaCentral" brand header
   const headingName =
