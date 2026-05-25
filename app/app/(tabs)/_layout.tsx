@@ -1,11 +1,13 @@
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-// Using Unicode characters as icon stand-ins until a proper icon library
-// (e.g. @expo/vector-icons) is added. Replace TabBarIcon with Ionicons etc.
-function TabBarIcon({ symbol }: { symbol: string }) {
-  return null; // placeholder — swap in <Ionicons> once icons are installed
-}
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const TAB_ICONS: Record<string, { active: IoniconName; inactive: IoniconName }> = {
+  index: { active: "stopwatch", inactive: "stopwatch-outline" },
+  results: { active: "trophy", inactive: "trophy-outline" },
+  settings: { active: "settings", inactive: "settings-outline" },
+};
 
 export default function TabLayout() {
   return (
@@ -31,7 +33,13 @@ export default function TabLayout() {
         options={{
           title: "Schedule",
           tabBarLabel: "Schedule",
-          tabBarIcon: ({ color }) => <TabBarIcon symbol="calendar" />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? TAB_ICONS.index.active : TAB_ICONS.index.inactive}
+              size={size}
+              color={color}
+            />
+          ),
           headerTitle: "RowDay",
         }}
       />
@@ -40,7 +48,13 @@ export default function TabLayout() {
         options={{
           title: "Results",
           tabBarLabel: "Results",
-          tabBarIcon: ({ color }) => <TabBarIcon symbol="trophy" />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? TAB_ICONS.results.active : TAB_ICONS.results.inactive}
+              size={size}
+              color={color}
+            />
+          ),
           headerTitle: "Results",
         }}
       />
@@ -49,7 +63,13 @@ export default function TabLayout() {
         options={{
           title: "Settings",
           tabBarLabel: "Settings",
-          tabBarIcon: ({ color }) => <TabBarIcon symbol="gear" />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? TAB_ICONS.settings.active : TAB_ICONS.settings.inactive}
+              size={size}
+              color={color}
+            />
+          ),
           headerTitle: "Settings",
         }}
       />

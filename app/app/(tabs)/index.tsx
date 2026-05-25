@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
+  RefreshControl,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "../../store/useAppStore";
@@ -88,6 +89,8 @@ export default function ScheduleScreen() {
     data,
     isLoading,
     error,
+    refetch,
+    isFetching,
   } = useQuery({
     queryKey: ["clubSchedule", activeRegatta?.id, followedClub?.id],
     queryFn: () => {
@@ -147,6 +150,13 @@ export default function ScheduleScreen() {
     <FlatList
       data={schedule}
       keyExtractor={(item) => item.heat.id}
+      refreshControl={
+        <RefreshControl
+          refreshing={isFetching && !isLoading}
+          onRefresh={refetch}
+          tintColor="#1a3a5c"
+        />
+      }
       ListHeaderComponent={
         <>
           <RegattaHeader
@@ -171,8 +181,14 @@ export default function ScheduleScreen() {
       }
       renderItem={({ item }) => <HeatRow item={item} />}
       ListEmptyComponent={
-        <View style={styles.centered}>
-          <Text style={styles.emptyBody}>No heats found for {followedClub.name}.</Text>
+        <View style={styles.emptyHeatState}>
+          <Text style={styles.emptyHeatIcon}>⏱</Text>
+          <Text style={styles.emptyHeatTitle}>Heat assignments not yet posted</Text>
+          <Text style={styles.emptyHeatBody}>
+            Check back closer to race day — heat sheets are typically released
+            24–48 hours before racing begins.
+          </Text>
+          <Text style={styles.emptyHeatHint}>Pull to refresh</Text>
         </View>
       }
       contentContainerStyle={styles.list}
@@ -294,5 +310,34 @@ const styles = StyleSheet.create({
     color: "#333",
     textTransform: "uppercase",
     letterSpacing: 0.4,
+  },
+  emptyHeatState: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingTop: 48,
+    paddingBottom: 32,
+  },
+  emptyHeatIcon: {
+    fontSize: 40,
+    marginBottom: 16,
+  },
+  emptyHeatTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1a3a5c",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  emptyHeatBody: {
+    fontSize: 15,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  emptyHeatHint: {
+    fontSize: 13,
+    color: "#aaa",
+    textAlign: "center",
   },
 });

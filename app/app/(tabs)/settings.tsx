@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useAppStore } from "../../store/useAppStore";
 
 function SectionHeader({ title }: { title: string }) {
@@ -31,6 +32,7 @@ function SettingsRow({
 
 export default function SettingsScreen() {
   const { activeRegatta, followedClub, followedAthlete } = useAppStore();
+  const router = useRouter();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -38,18 +40,14 @@ export default function SettingsScreen() {
       <SettingsRow
         label="Active Regatta"
         value={activeRegatta?.name ?? "None"}
-        onPress={() => {
-          // TODO: navigate to regatta picker
-        }}
+        onPress={() => router.push("/onboarding")}
       />
 
       <SectionHeader title="Following" />
       <SettingsRow
         label="Club"
         value={followedClub?.name ?? "None"}
-        onPress={() => {
-          // TODO: navigate to club picker
-        }}
+        onPress={() => router.push("/onboarding")}
       />
       <SettingsRow
         label="Athlete"
@@ -58,9 +56,7 @@ export default function SettingsScreen() {
             ? `${followedAthlete.first_name} ${followedAthlete.last_name}`
             : "None"
         }
-        onPress={() => {
-          // TODO: navigate to athlete picker
-        }}
+        onPress={() => router.push("/onboarding")}
       />
 
       <SectionHeader title="About" />

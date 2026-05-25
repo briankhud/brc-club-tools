@@ -12,8 +12,19 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import * as Notifications from "expo-notifications";
 import { useAppStore } from "../store/useAppStore";
 import { getRegattas, getRegattaClubs } from "../services/api";
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 type OnboardingStep = "regatta" | "club" | "athlete" | "notifications";
 
@@ -21,8 +32,11 @@ interface Regatta {
   id: string;
   name: string;
   start_date: string;
+  end_date: string;
   city: string;
   state: string;
+  venue?: string;
+  status?: string;
 }
 
 interface Club {
@@ -213,6 +227,33 @@ function AthleteStep({
 // Step 4: Notifications opt-in
 // ---------------------------------------------------------------------------
 function NotificationsStep({ onFinish }: { onFinish: () => void }) {
+  const { activeRegatta, followedAthlete } = useAppStore();
+
+  async function handleEnableNotifications() {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status === "granted") {
+      try {
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        await fetch(`${API_BASE}/api/subscriptions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            device_token: tokenData.data,
+            platform: Platform.OS,
+            regatta_id: activeRegatta?.id ?? null,
+            athlete_name: followedAthlete
+              ? `${followedAthlete.first_name} ${followedAthlete.last_name}`
+              : null,
+          }),
+        });
+      } catch (e) {
+        // Non-fatal — notifications just won't work but onboarding should complete
+        console.warn("Failed to register push token:", e);
+      }
+    }
+    onFinish();
+  }
+
   return (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Stay in the loop</Text>
@@ -222,10 +263,7 @@ function NotificationsStep({ onFinish }: { onFinish: () => void }) {
       </Text>
       <Pressable
         style={[styles.primaryButton, { marginTop: 24 }]}
-        onPress={() => {
-          // TODO: call Notifications.requestPermissionsAsync() and register token
-          onFinish();
-        }}
+        onPress={handleEnableNotifications}
       >
         <Text style={styles.primaryButtonText}>Enable notifications</Text>
       </Pressable>

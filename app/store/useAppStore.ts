@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface Regatta {
   id: string;
@@ -39,37 +41,22 @@ interface AppState {
   clearAll: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  // Default to Brighton Burn 2026 / BRC for development convenience.
-  // In production this would be persisted to AsyncStorage and start as null
-  // until the user completes onboarding.
-  activeRegatta: {
-    id: "bb-2026",
-    name: "Brighton Burn 2026",
-    start_date: "2026-02-28",
-    end_date: "2026-02-28",
-    venue: "Twelve Corners Middle School",
-    city: "Rochester",
-    state: "NY",
-    status: "upcoming",
-  },
-  followedClub: {
-    id: "c1",
-    name: "Brighton Rowing Club",
-    short_name: "BRC",
-    city: "Rochester",
-    state: "NY",
-  },
-  followedAthlete: {
-    id: "a2",
-    first_name: "Nora",
-    last_name: "Ashworth",
-    gender: "F",
-  },
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      activeRegatta: null,
+      followedClub: null,
+      followedAthlete: null,
 
-  setActiveRegatta: (regatta) => set({ activeRegatta: regatta }),
-  setFollowedClub: (club) => set({ followedClub: club }),
-  setFollowedAthlete: (athlete) => set({ followedAthlete: athlete }),
-  clearAll: () =>
-    set({ activeRegatta: null, followedClub: null, followedAthlete: null }),
-}));
+      setActiveRegatta: (regatta) => set({ activeRegatta: regatta }),
+      setFollowedClub: (club) => set({ followedClub: club }),
+      setFollowedAthlete: (athlete) => set({ followedAthlete: athlete }),
+      clearAll: () =>
+        set({ activeRegatta: null, followedClub: null, followedAthlete: null }),
+    }),
+    {
+      name: "rowday-store",
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);

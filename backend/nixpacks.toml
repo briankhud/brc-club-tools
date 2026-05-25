@@ -1,0 +1,30 @@
+# nixpacks.toml — Option B fallback for Playwright/Chromium on Railway
+#
+# Use this file ONLY if the postinstall `playwright install chromium --with-deps`
+# approach (Option A in package.json) fails during Railway build because of
+# missing system libraries. To activate Option B:
+#   1. Remove the "postinstall" script from package.json
+#   2. Rename this file from nixpacks.toml.disabled to nixpacks.toml (or keep as-is)
+#   3. Redeploy — Nixpacks will pre-install all system libs before npm install
+
+[phases.setup]
+nixPkgs = [
+  "chromium",
+  "nss",
+  "nspr",
+  "atk",
+  "cups",
+  "libdrm",
+  "dbus",
+  "libxkbcommon",
+  "gtk3",
+  "pango",
+  "xorg.libX11",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXext",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
+  "libgbm",
+  "alsa-lib"
+]
