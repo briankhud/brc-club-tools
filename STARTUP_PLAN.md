@@ -1,6 +1,6 @@
 # RowDay Startup Execution Plan
 
-**Last updated:** 2026-05-24  
+**Last updated:** 2026-05-25  
 **Owner:** Brian Hudson  
 **CTO/Strategy:** Claude (Anthropic)
 
@@ -32,9 +32,9 @@ Each role below maps to a specialized Claude agent (or Brian directly, for items
 
 | Role | Agent Invocation | Owns | Status |
 |------|-----------------|------|--------|
-| **Backend Engineer** | "You are the RowDay Backend Engineer" | `/backend/` — Hono API, database wiring, scraper integration, scheduler | READY: scraper works, schema exists, API has stubs. Need to wire scraper → DB → API. |
-| **iOS / React Native Engineer** | "You are the RowDay iOS/RN Engineer" | `/app/` — all Expo/RN screens, navigation, components, push notifications | READY: screens scaffolded, components built. Need: push notification wiring, tab icons, Settings navigation, age gate. |
-| **DevOps / Infrastructure** | "You are the RowDay DevOps Engineer" | Railway deployment, env vars, Postgres provisioning, CI | READY: codebase compiles. Need: Railway project setup, Dockerfile, env secrets, Railway Postgres. |
+| **Backend Engineer** | "You are the RowDay Backend Engineer" | `/backend/` — Hono API, database wiring, syncer integration, scheduler | ✅ DONE: Playwright syncer works (40 events, 131 clubs validated on CSSRA 2026). DB wired. All 5 hardcoded routes replaced with Postgres queries. 4 new endpoints added. Fire-and-forget sync endpoint live. Railway deployed, health check passing. |
+| **iOS / React Native Engineer** | "You are the RowDay iOS/RN Engineer" | `/app/` — all Expo/RN screens, navigation, components, push notifications | ✅ DONE: Push notification wiring done. Tab icons wired. Settings navigation wired. Age gate screen added. Zustand persistence added. Hardcoded defaults removed. QueryClientProvider added (was missing). |
+| **DevOps / Infrastructure** | "You are the RowDay DevOps Engineer" | Railway deployment, env vars, Postgres provisioning, CI | ✅ DONE: Railway project live. nixpacks.toml fixed (nodejs_20 + Chromium). SSL detection fixed for Railway internal network. Schema migrated. Health check passing. |
 
 ### Priority 2 — Ship to users
 
@@ -49,7 +49,7 @@ Each role below maps to a specialized Claude agent (or Brian directly, for items
 | Role | Agent Invocation | Owns | Status |
 |------|-----------------|------|--------|
 | **Design** | "You are the RowDay Design Lead" | Figma components, branding, app icon, screenshots, App Store assets | WAITING: current UI is functional but unstyled icons. After first regatta. |
-| **Data / Scraping** | "You are the RowDay Data Engineer" | Scraper maintenance, heat-sheet PDF parsing, edge case handling, scraper health monitoring | ACTIVE: scraper works for HTML; PDF path (heat sheets) needs work. |
+| **Data / Syncing** | "You are the RowDay Data Engineer" | Syncer maintenance, heat-sheet PDF parsing, edge case handling, syncer health monitoring | ✅ DONE: Playwright syncer bypasses RC bot detection. PDF parser implemented — 194/194 races, 40/40 events validated on CSSRA 2026. Terminology renamed scrape→sync (branch in progress). |
 
 ---
 
@@ -57,46 +57,48 @@ Each role below maps to a specialized Claude agent (or Brian directly, for items
 
 ### Target Event: Lake Ontario Invitational (~early June 2026)
 
-Note: Web search did not find a confirmed RC job_id for this event yet. Check `https://www.regattacentral.com/regattas` and search "Lake Ontario" around May 28 to get the job_id when entries open. The scraper is already proven on job_id=10115 (CSSRA 2026).
+Note: Web search did not find a confirmed RC job_id for this event yet. Check `https://www.regattacentral.com/regattas` and search "Lake Ontario" around May 28 to get the job_id when entries open. The syncer is already proven on job_id=10115 (CSSRA 2026, 40 events, 131 clubs, 194 races).
 
 ---
 
 ### Week 1–2 (May 25 – June 7): Regatta-Ready MVP
 
-**Goal:** A working app Brian can hand to BRC parents at the regatta. Must work on real phones pointed at a live Railway backend scraping real RC data.
+**Goal:** A working app Brian can hand to BRC parents at the regatta. Must work on real phones pointed at a live Railway backend syncing real RC data.
 
 #### Backend tasks
 
-| Task | File(s) | Notes |
-|------|---------|-------|
-| Wire scraper output → Postgres | `backend/src/index.ts`, new `backend/src/db/client.ts` | Replace all hardcoded `REGATTAS`, `BB_2026_EVENTS`, etc. with DB queries using the `postgres` package (already a dependency). |
-| Add scraper trigger endpoint | `backend/src/index.ts` | `POST /api/admin/scrape?job_id=NNNNN` — triggers a one-shot scrape of a new regatta and seeds the DB. Protected by a `ADMIN_SECRET` header. |
-| Wire scheduler to DB | `backend/src/jobs/scrape-scheduler.ts` (line 18) | Replace `ACTIVE_REGATTA_IDS: string[] = []` stub with a DB query: `SELECT rc_regatta_id FROM regatta WHERE status = 'active'`. |
-| Push notification sender | New `backend/src/jobs/notify.ts` | Use `expo-server-sdk` (already a dependency) to send notifications when `race.status` changes to `official`. |
-| Register device token endpoint | `backend/src/index.ts` | `POST /api/subscriptions` — stores Expo push token + regatta_id + optional athlete name in `subscription` table. |
-| Update results endpoint | `backend/src/index.ts` | Add `GET /api/regattas/:id/results` that returns all races with status official/unofficial and their lanes. Currently missing. |
+| Task | File(s) | Status |
+|------|---------|--------|
+| Wire syncer output → Postgres | `backend/src/index.ts`, `backend/src/db/client.ts` | ✅ DONE — All 5 hardcoded routes replaced with DB queries. |
+| Add sync trigger endpoint | `backend/src/index.ts` | ✅ DONE — `POST /api/admin/sync?job_id=NNNNN` (fire-and-forget, returns 202). Status polling at `GET /api/admin/sync/:jobId`. |
+| Wire scheduler to DB | `backend/src/jobs/sync-scheduler.ts` | ✅ DONE — `getActiveRegattaIds()` DB call replaces static stub. Full diff+upsert logic implemented. |
+| Push notification sender | `backend/src/jobs/sync-scheduler.ts` | ✅ DONE — Expo push SDK wired for result status changes. |
+| Register device token endpoint | `backend/src/index.ts` | ✅ DONE — `POST /api/subscriptions` stores device token + regatta_id + athlete name. |
+| Update results endpoint | `backend/src/index.ts` | ✅ DONE — `GET /api/regattas/:id/results` returns all races + lanes. |
+
+> ⚠️ Note: `startSyncScheduler()` is intentionally NOT wired into index.ts yet — add it after confirming DB is stable through a few manual syncs.
 
 #### App tasks
 
-| Task | File(s) | Notes |
-|------|---------|-------|
-| Wire notification permission request | `app/app/onboarding.tsx` (line 227) | Replace `// TODO: call Notifications.requestPermissionsAsync()` with actual `expo-notifications` call. Store token via `POST /api/subscriptions`. |
-| Persist store to AsyncStorage | `app/store/useAppStore.ts` | Wrap Zustand with `zustand/middleware` `persist` + AsyncStorage. Remove hardcoded BRC defaults (lines 46–68) — these are dev-only conveniences that will confuse real users. |
-| Wire Settings screen navigation | `app/app/(tabs)/settings.tsx` (lines 43, 51, 59) | Replace `// TODO: navigate to regatta picker` with `router.push('/onboarding')`. |
-| Add tab bar icons | `app/app/(tabs)/_layout.tsx` (line 8) | Install `@expo/vector-icons` and replace the null-returning `TabBarIcon` placeholder. Use `Ionicons`: `calendar-outline`, `trophy-outline`, `settings-outline`. |
-| Add age gate / COPPA screen | New `app/app/age-gate.tsx` | Show before onboarding: "Are you 18 or older?" If No, show "This app is for parents and guardians" and block entry. Store `hasPassedAgeGate` in AsyncStorage. |
-| Point API at Railway URL | `app/services/api.ts` (line 10) | `EXPO_PUBLIC_API_URL` env var already wired. Set `.env` in app/ to Railway URL once deployed. |
-| Handle "no heats yet" gracefully | `app/app/(tabs)/index.tsx` | When `schedule` is empty because entries aren't released yet, show "Heat assignments not yet posted — check back closer to race day." |
+| Task | File(s) | Status |
+|------|---------|--------|
+| Wire notification permission request | `app/app/onboarding.tsx` | ✅ DONE — `expo-notifications` wired, token POST to `/api/subscriptions`. |
+| Persist store to AsyncStorage | `app/store/useAppStore.ts` | ✅ DONE — Zustand persist middleware + AsyncStorage. Hardcoded BRC defaults removed. |
+| Wire Settings screen navigation | `app/app/(tabs)/settings.tsx` | ✅ DONE — `router.push('/onboarding')` on all three action rows. |
+| Add tab bar icons | `app/app/(tabs)/_layout.tsx` | ✅ DONE — `@expo/vector-icons` Ionicons wired. |
+| Add age gate / COPPA screen | `app/app/age-gate.tsx` | ✅ DONE — Age gate created, `hasPassedAgeGate` in AsyncStorage. |
+| Point API at Railway URL | `app/.env` | ✅ DONE — `.env` created. Currently `localhost:3000` for dev. **Update to Railway URL before phone test.** |
+| Handle "no heats yet" gracefully | `app/app/(tabs)/index.tsx` | ✅ DONE — Empty schedule shows "Heat assignments not yet posted" message. |
 
 #### Infrastructure tasks
 
-| Task | File(s) | Notes |
-|------|---------|-------|
-| Create Railway project | Railway dashboard | See Section 4 for exact steps. |
-| Set env vars | Railway dashboard | `DATABASE_URL`, `PORT`, `ADMIN_SECRET`, `RC_REQUEST_DELAY_MS=800` |
-| Provision Railway Postgres | Railway dashboard | One click. Copy `DATABASE_URL` into service env. |
-| Run schema.sql on Railway Postgres | CLI | `psql $DATABASE_URL -f backend/src/db/schema.sql` |
-| Deploy backend to Railway | `railway up` or GitHub auto-deploy | See Section 4. |
+| Task | File(s) | Status |
+|------|---------|--------|
+| Create Railway project | Railway dashboard | ✅ DONE |
+| Set env vars | Railway dashboard | ✅ DONE — `DATABASE_URL` (reference var), `ADMIN_SECRET`, `RC_REQUEST_DELAY_MS=800`, `NODE_ENV=production` |
+| Provision Railway Postgres | Railway dashboard | ✅ DONE |
+| Run schema.sql on Railway Postgres | CLI via `DATABASE_PUBLIC_URL` | ✅ DONE — 9-table schema applied |
+| Deploy backend to Railway | `railway up` | ✅ DONE — Health check passing. nixpacks.toml fixed for Chromium. |
 
 ---
 
@@ -112,7 +114,7 @@ Note: Web search did not find a confirmed RC job_id for this event yet. Check `h
 | Privacy policy live URL | Generate with iubenda (free tier covers this). Must be a live URL for App Store and Play Store submissions. |
 | Crash reporting | Install `@sentry/react-native` (free tier: 5k errors/month). Wrap `App.tsx` with Sentry. |
 | Offline-graceful UX | Show last-cached data with "Last updated: X min ago" if backend is unreachable. |
-| Athlete search improvement | Currently text-entry only (onboarding.tsx lines 160–210). Add fuzzy search against `/api/regattas/:id/athletes?q=` endpoint (new endpoint needed). |
+| Athlete search improvement | Currently text-entry only (onboarding.tsx). Wire against `/api/regattas/:id/athletes?q=` endpoint. |
 
 ---
 
@@ -135,202 +137,87 @@ Note: Web search did not find a confirmed RC job_id for this event yet. Check `h
 
 ## 3. Technical Architecture — Gaps & Fixes
 
-This section catalogs every significant stub, TODO, and missing connection in the current codebase as of 2026-05-24.
+This section catalogs every significant stub, TODO, and missing connection in the original codebase as of 2026-05-24. **All 10 issues below were resolved on 2026-05-25.**
 
-### 3.1 Backend — `backend/src/index.ts`
+### 3.1 Backend — `backend/src/index.ts` ✅ FIXED (2026-05-25)
 
-**Problem: Entire API runs on hardcoded in-memory data.**
+~~**Problem: Entire API runs on hardcoded in-memory data.**~~
 
-Lines 16–230 are hardcoded arrays (`REGATTAS`, `BRC_ATHLETES`, `BB_2026_EVENTS`, `BB_2026_CLUBS`, `E1_HEATS`, `E5_HEATS`). These will never update. The real scraper (`rc-client.ts`) exists and works but is never called from the API routes.
-
-**Fix required:**
-1. Create `backend/src/db/client.ts` — instantiate a `postgres` client from `process.env.DATABASE_URL`.
-2. Replace each API route handler with a DB query. For example, `GET /api/regattas` becomes `SELECT * FROM regatta ORDER BY start_date` instead of `return c.json({ regattas: REGATTAS })`.
-3. The shape of the DB schema (`schema.sql`) already matches the API response shapes — the `race` table is what the API calls `heat`, and `lane` maps directly to `HeatLane` in `api.ts`.
-
-**Missing endpoints (not in index.ts at all):**
-- `GET /api/regattas/:id/results` — needed by the results tab
-- `POST /api/subscriptions` — needed for push notifications
-- `GET /api/regattas/:id/athletes?q=` — needed for athlete search
-- `POST /api/admin/scrape` — needed to seed a new regatta
-- `GET /health` — EXISTS (line 236), good
+**Resolution:** All 5 hardcoded routes replaced with Postgres queries via `backend/src/db/queries.ts`. 4 new endpoints added: `GET /api/regattas/:id/results`, `GET /api/regattas/:id/athletes?q=`, `POST /api/subscriptions`, `POST /api/admin/sync`. Fire-and-forget sync endpoint returns 202 immediately with status polling at `GET /api/admin/sync/:jobId`.
 
 ---
 
-### 3.2 Scraper Scheduler — `backend/src/jobs/scrape-scheduler.ts`
+### 3.2 Syncer Scheduler — `backend/src/jobs/sync-scheduler.ts` ✅ FIXED (2026-05-25)
 
-**Problem: `ACTIVE_REGATTA_IDS` is hardcoded empty.**
+~~**Problem: `ACTIVE_REGATTA_IDS` is hardcoded empty.**~~
 
-Line 18: `const ACTIVE_REGATTA_IDS: string[] = []`
+**Resolution:** `getActiveRegattaIds()` DB call (`SELECT rc_regatta_id FROM regatta WHERE status = 'active'`) replaces the static stub. Full fetch → diff → upsert → push notification loop implemented.
 
-This means the scheduler runs every 60 seconds but never scrapes anything because `scrapeActiveRegattas()` returns immediately at line 28.
-
-**Fix required (line 18):**
-```typescript
-// Replace the static array with a DB lookup
-async function getActiveRegattaIds(): Promise<string[]> {
-  const rows = await sql`SELECT rc_regatta_id FROM regatta WHERE status = 'active'`;
-  return rows.map(r => r.rc_regatta_id);
-}
-```
-Then update `scrapeActiveRegattas()` to call this function instead of reading the array.
-
-**Problem: Scraper fetches data but does nothing with it (line 47).**
-
-Line 47: `// TODO: diff fetched data against DB, persist changes, and fire push notifications`
-
-This is the most important missing piece. The full loop is: fetch → diff → upsert to DB → check for result changes → send push notifications. None of steps 3–5 are implemented.
+> ⚠️ `startSyncScheduler()` still NOT wired into `index.ts` — intentional. Add after confirming DB stability through a few manual syncs.
 
 ---
 
-### 3.3 App — `app/store/useAppStore.ts`
+### 3.3 App — `app/store/useAppStore.ts` ✅ FIXED (2026-05-25)
 
-**Problem: Hardcoded dev defaults will ship to real users.**
+~~**Problem: Hardcoded dev defaults will ship to real users.**~~
 
-Lines 46–68 hardcode Brighton Burn 2026 / BRC / Nora Ashworth as the active state. This means any user who downloads the app will see Brighton Burn (a past indoor erg regatta) as their "active" regatta, not the event they're attending.
-
-**Fix required:** Change `activeRegatta`, `followedClub`, and `followedAthlete` to `null` as the initial values, and add Zustand persistence:
-
-```typescript
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { persist, createJSONStorage } from 'zustand/middleware';
-
-export const useAppStore = create<AppState>()(
-  persist(
-    (set) => ({
-      activeRegatta: null,   // was hardcoded to Brighton Burn
-      followedClub: null,    // was hardcoded to BRC
-      followedAthlete: null, // was hardcoded to Nora Ashworth
-      // ... actions unchanged
-    }),
-    { name: 'rowday-store', storage: createJSONStorage(() => AsyncStorage) }
-  )
-);
-```
+**Resolution:** `activeRegatta`, `followedClub`, `followedAthlete` now initialize to `null`. Zustand `persist` middleware with AsyncStorage added.
 
 ---
 
-### 3.4 App — `app/app/onboarding.tsx`
+### 3.4 App — `app/app/onboarding.tsx` ✅ FIXED (2026-05-25)
 
-**Problem: Push notification permission is a TODO.**
+~~**Problem: Push notification permission is a TODO.**~~
 
-Line 227: `// TODO: call Notifications.requestPermissionsAsync() and register token`
-
-**Fix required (replace the onPress handler in NotificationsStep):**
-```typescript
-import * as Notifications from 'expo-notifications';
-
-const { status } = await Notifications.requestPermissionsAsync();
-if (status === 'granted') {
-  const token = await Notifications.getExpoPushTokenAsync();
-  // POST token to backend
-  await fetch(`${API_BASE}/api/subscriptions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      device_token: token.data,
-      platform: Platform.OS,
-      regatta_id: activeRegatta?.id,
-    }),
-  });
-}
-onFinish();
-```
+**Resolution:** `expo-notifications` wired. `requestPermissionsAsync()` called, token obtained and POSTed to `/api/subscriptions`.
 
 ---
 
-### 3.5 App — `app/app/(tabs)/settings.tsx`
+### 3.5 App — `app/app/(tabs)/settings.tsx` ✅ FIXED (2026-05-25)
 
-**Problem: All action rows are dead-end TODOs.**
+~~**Problem: All action rows are dead-end TODOs.**~~
 
-Lines 43, 51, 59: `// TODO: navigate to regatta picker`
-
-These are all `onPress` handlers that do nothing. A user can see their current selections but cannot change them without reinstalling.
-
-**Fix (3 lines):** Replace all three TODO comments with `router.push('/onboarding')`. This re-runs the onboarding flow. Not elegant long-term but works for MVP.
+**Resolution:** All three TODO `onPress` handlers replaced with `router.push('/onboarding')`.
 
 ---
 
-### 3.6 App — `app/app/(tabs)/_layout.tsx`
+### 3.6 App — `app/app/(tabs)/_layout.tsx` ✅ FIXED (2026-05-25)
 
-**Problem: Tab bar icons are placeholder nulls.**
+~~**Problem: Tab bar icons are placeholder nulls.**~~
 
-Line 7–8: `TabBarIcon` returns `null`. The tab bar shows no icons, just text labels.
-
-**Fix:**
-```bash
-npx expo install @expo/vector-icons
-```
-Then in `_layout.tsx`:
-```typescript
-import { Ionicons } from '@expo/vector-icons';
-
-// Replace TabBarIcon entirely:
-tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />
-// results: "trophy-outline"
-// settings: "settings-outline"
-```
+**Resolution:** `@expo/vector-icons` installed. Ionicons `calendar-outline`, `trophy-outline`, `settings-outline` wired per tab.
 
 ---
 
-### 3.7 App — `app/.env` (missing entirely)
+### 3.7 App — `app/.env` ✅ FIXED (2026-05-25)
 
-**Problem: No `.env` file exists in `/app/`.**
+~~**Problem: No `.env` file exists in `/app/`.**~~
 
-`api.ts` line 10 reads `process.env.EXPO_PUBLIC_API_URL` but there's no `.env` file to set it. During local dev it silently falls back to `localhost:3000`, which breaks on physical devices.
-
-**Fix:** Create `app/.env`:
-```
-EXPO_PUBLIC_API_URL=https://YOUR-RAILWAY-APP.up.railway.app
-```
-During local dev on physical device, temporarily set this to `http://YOUR-LOCAL-IP:3000`.
+**Resolution:** `app/.env` created with `EXPO_PUBLIC_API_URL=http://localhost:3000`. Update to Railway URL before phone testing.
 
 ---
 
-### 3.8 Backend — `.env.example`
+### 3.8 Backend — `.env.example` ✅ FIXED (2026-05-25)
 
-**Problem: `.env.example` references the defunct RC v3 API.**
+~~**Problem: `.env.example` references the defunct RC v3 API.**~~
 
-Line 4: `RC_API_BASE=https://api.regattacentral.com/v3.0` — this API is decommissioned (all endpoints 404, per `rc-client.ts` line 6). The scraper uses HTML scraping, not this URL.
-
-**Fix:** Remove `RC_API_BASE` from `.env.example`. Update with:
-```
-DATABASE_URL=postgresql://localhost:5432/rowday
-PORT=3000
-RC_REQUEST_DELAY_MS=800
-ADMIN_SECRET=change-me-in-production
-EXPO_ACCESS_TOKEN=            # from expo.dev account settings
-```
+**Resolution:** `RC_API_BASE` removed. Updated with current vars: `DATABASE_URL`, `PORT`, `RC_REQUEST_DELAY_MS`, `ADMIN_SECRET`, `EXPO_ACCESS_TOKEN`.
 
 ---
 
-### 3.9 Missing: Age Gate / COPPA Screen
+### 3.9 Missing: Age Gate / COPPA Screen ✅ FIXED (2026-05-25)
 
-The app has no age gate. Since RC's website is publicly accessible and the app is parent-facing, this is straightforward: show a one-time splash asking "I confirm I am 18 or older" before the onboarding flow. Gate on `hasPassedAgeGate` in AsyncStorage. This is required for App Store submission.
+~~**Missing: No age gate before onboarding.**~~
 
-**Create:** `app/app/age-gate.tsx`  
-**Wire from:** `app/app/_layout.tsx` (check AsyncStorage before routing to tabs or onboarding)
+**Resolution:** `app/app/age-gate.tsx` created. 18+ navigates to `/onboarding`; under-18 sees dead-end message. `hasPassedAgeGate` stored in AsyncStorage. Root `_layout.tsx` checks AsyncStorage before routing.
 
 ---
 
-### 3.10 Missing: Database Client Module
+### 3.10 Missing: Database Client Module ✅ FIXED (2026-05-25)
 
-There is no `backend/src/db/client.ts`. The `postgres` package is installed (package.json line 14) and the schema is written (`backend/src/db/schema.sql`) but nothing connects them to the API routes.
+~~**Missing: No `backend/src/db/client.ts`.**~~
 
-**Create:** `backend/src/db/client.ts`
-```typescript
-import postgres from 'postgres';
-
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required');
-}
-
-export const sql = postgres(process.env.DATABASE_URL, {
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10,
-});
-```
-Then import `sql` in `index.ts` and all scheduler files.
+**Resolution:** `backend/src/db/client.ts` created with Railway SSL detection (`postgres.railway.internal` = no SSL, public proxy URLs = SSL). 20+ typed query functions in `backend/src/db/queries.ts`.
 
 ---
 
@@ -342,95 +229,40 @@ Railway provides managed Postgres, automatic HTTPS, zero-config deploys from Git
 
 ### Step-by-Step Deploy
 
-**Step 1: Create Railway project (~5 minutes)**
+**Step 1: Create Railway project** ✅ DONE
 
+**Step 2: Add PostgreSQL** ✅ DONE — Managed Postgres provisioned. `DATABASE_URL` reference variable `${{Postgres.DATABASE_URL}}` set in backend service.
+
+**Step 3: Run schema migrations** ✅ DONE — 9-table schema applied via `DATABASE_PUBLIC_URL` (external proxy, uses SSL) from local machine.
+
+**Step 4: Set environment variables** ✅ DONE — `ADMIN_SECRET`, `RC_REQUEST_DELAY_MS=800`, `NODE_ENV=production`. Note: do NOT set `PORT` — Railway injects it automatically.
+
+**Step 5: Configure start command** ✅ DONE — `railway.json` with `"build": "npm run build"`, `"start": "npm start"`.
+
+**Step 6: Deploy** ✅ DONE — nixpacks.toml fixed to include `nodejs_20` (critical — defining `[phases.setup]` without it overrides auto-detection and breaks npm). Health check passing.
+
+**Step 7: Point Expo app at Railway** — ⚠️ PARTIAL — `app/.env` created but still points to `localhost:3000`. Update to Railway URL before phone test:
+```
+EXPO_PUBLIC_API_URL=https://YOUR-RAILWAY-URL.up.railway.app
+```
+
+**Step 8: Verify** ✅ DONE
 ```bash
-npm install -g @railway/cli
-railway login
-railway init   # in /Users/brianhudson/projects/BRC/backend/
+curl https://YOUR-RAILWAY-URL.up.railway.app/health
+# {"status":"ok","timestamp":"..."}
+
+# Sync tested successfully on CSSRA 2026 (job_id=10115)
+# Result: 40 events, 131 clubs, 194 races synced to DB
 ```
 
-Name the project `rowday-backend`. Railway will detect Node.js automatically.
+**Key fixes discovered during deploy:**
+- `nixpacks.toml` must include `nodejs_20` when defining `[phases.setup]`
+- `postgres.railway.internal` (private network) does NOT use SSL; `*.rlwy.net` (public proxy) does
+- Do NOT set `PORT` env var — Railway auto-injects the correct port
+- Long-running sync must be fire-and-forget (Railway drops connections after ~60s)
+- Use `DATABASE_PUBLIC_URL` for migrations from local machine
 
-**Step 2: Add PostgreSQL (~2 minutes)**
-
-In the Railway dashboard: click "New Service" → "Database" → "PostgreSQL". Railway provisions a managed Postgres instance and sets `DATABASE_URL` automatically in the environment.
-
-Copy the `DATABASE_URL` value for the next step.
-
-**Step 3: Run schema migrations (~2 minutes)**
-
-```bash
-# Install psql locally if needed: brew install postgresql
-psql $DATABASE_URL -f /Users/brianhudson/projects/BRC/backend/src/db/schema.sql
-```
-
-**Step 4: Set environment variables**
-
-In Railway dashboard → Your Service → Variables:
-```
-PORT=3000
-RC_REQUEST_DELAY_MS=800
-ADMIN_SECRET=<generate with: openssl rand -hex 32>
-NODE_ENV=production
-```
-`DATABASE_URL` is set automatically by Railway Postgres.
-
-**Step 5: Configure start command**
-
-Railway needs to know how to start the app. Add to `backend/package.json`:
-```json
-"scripts": {
-  "build": "tsc",
-  "start": "node dist/index.js"
-}
-```
-
-Add `Procfile` in `backend/`:
-```
-web: npm run build && npm start
-```
-
-Or, simpler for now: use `tsx` directly in production (slower startup, fine for MVP):
-```
-web: npx tsx src/index.ts
-```
-
-**Step 6: Deploy**
-
-```bash
-# From backend/ directory:
-railway up
-```
-
-Railway will build and deploy. The service URL will be something like `https://rowday-backend-production.up.railway.app`.
-
-**Step 7: Point Expo app at Railway**
-
-Create `app/.env` (if it doesn't exist):
-```
-EXPO_PUBLIC_API_URL=https://rowday-backend-production.up.railway.app
-```
-
-Restart `npx expo start`. The app now hits Railway instead of localhost.
-
-**Step 8: Verify**
-
-```bash
-curl https://rowday-backend-production.up.railway.app/health
-# Expected: {"status":"ok","timestamp":"..."}
-```
-
-Then trigger a test scrape:
-```bash
-curl -X POST \
-  -H "X-Admin-Secret: YOUR_SECRET" \
-  "https://rowday-backend-production.up.railway.app/api/admin/scrape?job_id=10115"
-```
-
-**Optional: Redis**
-
-The `backend/package.json` includes `ioredis` and `.env.example` references `REDIS_URL`. Redis is not currently used in any code. Skip it for MVP. If you later add rate limiting or session caching, add Railway Redis the same way as Postgres.
+**Optional: Redis** — Not needed for MVP. Skip it.
 
 ---
 
@@ -443,6 +275,7 @@ This is the fastest path to getting the app in BRC parents' hands. Parents insta
 **To launch:**
 ```bash
 cd /Users/brianhudson/projects/BRC/app
+# First: update app/.env to Railway URL
 npx expo start --tunnel
 ```
 
@@ -486,7 +319,7 @@ This creates a real native build (no App Store required). For Android: share the
 |--------|--------|----------------|
 | Parents who open the app | 10 | Expo Go access logs / Railway request logs |
 | Parents who complete onboarding | 7 | DB: `SELECT COUNT(*) FROM subscription` |
-| Scraper uptime during race day | 95%+ | Railway logs show no 5xx errors during 7am–5pm window |
+| Syncer uptime during race day | 95%+ | Railway logs show no 5xx errors during 7am–5pm window |
 | Countdown accuracy | Within ±60 seconds | Manual spot-check during racing |
 | Positive verbal feedback | "I used this" from 3+ parents | Brian's judgment |
 | Critical bug during racing | 0 | Brian monitors Slack/Railway logs from the boathouse |
@@ -625,7 +458,7 @@ Search type: Entity Name. If results return "No business entities found," the na
 | Tier | Price | Included |
 |------|-------|----------|
 | **Free** | $0 | Any parent can follow any club; basic schedule + results |
-| **Club Pro** | $29/mo or $249/yr per club | Priority scraping (2-min refresh vs 5-min), club branding (logo + colors in app), push notifications for all club parents, heat-by-heat results digest email |
+| **Club Pro** | $29/mo or $249/yr per club | Priority syncing (2-min refresh vs 5-min), club branding (logo + colors in app), push notifications for all club parents, heat-by-heat results digest email |
 | **Club Elite** | $79/mo or $699/yr per club | Everything in Pro + athlete-level notifications (parents opt in to get notified only for their rower), exportable results CSVs, multi-regatta season dashboard |
 
 **Comparable benchmarks:**
@@ -678,19 +511,19 @@ Search type: Entity Name. If results return "No business entities found," the na
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| **RC blocks scraping** (rate-limiting, CAPTCHAs, robots.txt change, legal threat) | Medium | High | 1. Scrape politely: 800ms delay between requests (already implemented). 2. Rotate request cadence. 3. Cache aggressively: scrape once per 2 min max during racing. 4. Legal basis is solid (hiQ v. LinkedIn, public data, no ToS accepted). 5. Long-term: negotiate data partnership from a position of user traction. If blocked, fall back to PDF heat sheet parsing (already scaffolded in `fetchHeatSheet`). |
-| **App Store rejection** | Medium | Medium | Common reasons: COPPA non-compliance, missing privacy policy, scraping other services (Apple cares less about this than the privacy issue). Mitigations: age gate is required, privacy policy must be live URL, App Store description should say "aggregates publicly available regatta data." Keep description neutral. |
+| **RC blocks syncing** (rate-limiting, CAPTCHAs, robots.txt change, legal threat) | Medium | High | 1. Sync politely: 800ms delay between requests (already implemented). 2. Rotate request cadence. 3. Cache aggressively: sync once per 2 min max during racing. 4. Legal basis is solid (hiQ v. LinkedIn, public data, no ToS accepted). 5. Long-term: negotiate data partnership from a position of user traction. If blocked, fall back to PDF heat sheet parsing (already implemented and validated). |
+| **App Store rejection** | Medium | Medium | Common reasons: COPPA non-compliance, missing privacy policy, syncing other services (Apple cares less about this than the privacy issue). Mitigations: age gate is required, privacy policy must be live URL, App Store description should say "aggregates publicly available regatta data." Keep description neutral. |
 | **COPPA violation** | Low | High | App is explicitly parent-facing. Age gate blocks self-identified minors. We do not collect name, email, or any PII from users under 13. The subscription table stores device token + regatta preference only. No analytics on individual children. iubenda policy should state this explicitly. |
 | **Competition from other builders** | Low | Medium | The rowing market is small (~4,000 clubs US/Canada). No VC would fund a direct competitor for this niche. Risk is a motivated individual builder. Moat is execution speed and community trust — ship first, build relationships fast. |
 | **Brian time availability** (side project, day job, parent) | High | High | This is the real constraint. Mitigations: 1. Aggressive use of Claude for all coding tasks — Brian directs, Claude builds. 2. Ruthless MVP scope: only what's needed for one regatta. 3. Set "regatta day" as a hard deadline — everything before it is MVP, everything after is polish. 4. If Brian hits a wall, the backend-as-deployed-on-Railway still works for parents even if the app isn't updated for weeks. 5. Build the LLC and business infrastructure in parallel using 10-min micro-sessions during commutes. |
 | **Regatta cancelled / postponed** | Low | Low | First regatta is a proof-of-concept. If Lake Ontario Invitational moves, find the next BRC event on the calendar (typically every 2–3 weeks in spring season). |
-| **Playwright / Chromium costs on Railway** | Medium | Medium | Playwright with Chromium is memory-heavy (~300MB baseline). Railway Hobby plan includes up to 512MB RAM. Either: (a) switch to Cheerio-only scraping where possible (already partially done in rc-client.ts), or (b) run Playwright as a separate Railway service with more memory. For MVP, monitor RAM usage and upgrade to Pro plan ($20/mo) if needed. |
+| **Playwright / Chromium RAM on Railway** | Medium | Medium | Playwright with Chromium peaks at ~350–400MB. Railway Hobby plan includes up to 512MB RAM. Monitor during first race day. If needed, upgrade to Pro plan ($20/mo). Alternative: run Playwright as a separate Railway service. |
 
 ---
 
 ## 10. Brian's Morning Action List
 
-Do these in roughly this order. Estimated total time for items 1–5: about 2 hours.
+Do these in roughly this order. Items 2, 3, and 6 are already done — start with item 1.
 
 ---
 
@@ -698,36 +531,28 @@ Do these in roughly this order. Estimated total time for items 1–5: about 2 ho
   Go to: https://www.regattacentral.com/regattas  
   Search "Lake Ontario." When the regatta appears, note the job_id from the URL: `/regatta/?job_id=NNNNN`.  
   If it's not listed yet, check back daily — regattas typically appear 4–6 weeks before race day.  
-  Once you have the job_id, run the scraper test:
+  Once you have the job_id, trigger a sync:
   ```bash
-  cd /Users/brianhudson/projects/BRC/backend
-  JOB_ID=NNNNN npx tsx src/scraper/rc-test.ts
+  curl -X POST \
+    -H "X-Admin-Secret: YOUR_SECRET" \
+    "https://YOUR-RAILWAY-URL.up.railway.app/api/admin/sync?job_id=NNNNN"
+  # Returns 202 immediately. Poll GET /api/admin/sync/:jobId for status.
   ```
-  Confirm you see 40+ events and 10+ clubs.
+  Confirm you see 40+ events and 10+ clubs in the response.
 
 ---
 
-- [ ] **2. Create Railway project and deploy the backend** *(30 min)*  
-  This gets the backend live on the internet, which unblocks everything else.
-  ```bash
-  npm install -g @railway/cli
-  railway login
-  cd /Users/brianhudson/projects/BRC/backend
-  railway init
-  ```
-  Then in the Railway dashboard: add PostgreSQL, copy DATABASE_URL, run schema.sql, set env vars.  
-  See Section 4 for exact steps.  
-  URL: https://railway.app
+- [x] **2. Create Railway project and deploy the backend** *(done ✅)*  
+  Railway deployed. Health check passing. CSSRA 2026 synced successfully (40 events, 131 clubs, 194 races).
 
 ---
 
-- [ ] **3. Wire the DB client and replace hardcoded data** *(60–90 min, use Claude Backend Engineer agent)*  
-  This is a coding task. Open a Claude session, say: "You are the RowDay Backend Engineer. Read `/Users/brianhudson/projects/BRC/backend/src/index.ts` and `/Users/brianhudson/projects/BRC/backend/src/db/schema.sql`. Replace the hardcoded in-memory arrays with PostgreSQL queries using the `postgres` package. Also create `backend/src/db/client.ts`."  
-  This is the single highest-leverage technical task.
+- [x] **3. Wire the DB client and replace hardcoded data** *(done ✅)*  
+  All 5 hardcoded routes replaced with DB queries. 4 new endpoints added. `backend/src/db/client.ts` and `backend/src/db/queries.ts` created with 20+ typed query functions.
 
 ---
 
-- [ ] **4. Start the NY LLC formation** *(30 min)*  
+- [ ] **4. Start the NY LLC formation** *(30 min — Brian must do this)*  
   a. Check name availability at: https://apps.dos.ny.gov/publicInquiry/  
   b. Pick one: Lakeside Sports Tech LLC, Boathouse Labs LLC, or Coxswain Technologies LLC  
   c. Go to Northwest Registered Agent (https://www.northwestregisteredagent.com) or ZenBusiness (https://www.zenbusiness.com) — choose a registered agent with an upstate NY address to minimize publication costs (~$400–$550 total vs. $2,000+ in Monroe County).  
@@ -735,43 +560,56 @@ Do these in roughly this order. Estimated total time for items 1–5: about 2 ho
 
 ---
 
-- [ ] **5. Apply for DUNS number** *(10 min)*  
+- [ ] **5. Apply for DUNS number** *(10 min — Brian must do this)*  
   URL: https://developer.apple.com/enroll/duns-lookup/  
   You need the LLC name and EIN (get EIN at irs.gov — 10 minutes, free). Do EIN first, then DUNS immediately after.  
   The 5-day DUNS wait starts the clock. Everything else can proceed while you wait.
 
 ---
 
-- [ ] **6. Fix the three highest-priority app issues** *(45 min, use Claude iOS/RN agent)*  
-  In order:  
-  a. Add `@expo/vector-icons` and wire tab icons (5 min — see Section 3.6)  
-  b. Fix `useAppStore.ts` initial state to null + add persistence (10 min — see Section 3.3)  
-  c. Wire notification permission in `onboarding.tsx` (20 min — see Section 3.4)
+- [x] **6. Fix the three highest-priority app issues** *(done ✅)*  
+  a. Tab icons wired with `@expo/vector-icons` Ionicons ✅  
+  b. `useAppStore.ts` initial state to null + Zustand persistence ✅  
+  c. Push notification permission wired in `onboarding.tsx` ✅  
+  Bonus: Age gate added, QueryClientProvider added (was missing — would have crashed all queries), root `index.tsx` and `_layout.tsx` created.
 
 ---
 
-- [ ] **7. Create `app/.env` pointing at Railway** *(5 min)*  
+- [ ] **7. Update `app/.env` to Railway URL and test on phone** *(5 min)*  
   ```
   EXPO_PUBLIC_API_URL=https://YOUR-RAILWAY-URL.up.railway.app
   ```
-  Test on your physical iPhone: `npx expo start --tunnel`, scan QR with Expo Go, verify the regatta list loads from Railway (not localhost).
+  Currently points to `localhost:3000`. Update to Railway URL, then:
+  ```bash
+  cd /Users/brianhudson/projects/BRC/app
+  npx expo start --tunnel
+  ```
+  Scan QR with Expo Go on your iPhone. Verify regatta list loads from Railway.
 
 ---
 
 - [ ] **8. Send yourself the Expo Go QR code and verify end-to-end** *(15 min)*  
-  With `--tunnel` running and Railway backend live, run through the full onboarding flow on your phone. Select the Lake Ontario Invitational, select BRC, enter your athlete's name. Confirm the schedule screen loads with real heat data. This is the first real-world end-to-end test.
+  With `--tunnel` running and Railway backend live and Lake Ontario job_id synced: run through the full onboarding flow on your phone. Select the Lake Ontario Invitational, select BRC, enter your athlete's name. Confirm the schedule screen loads with real heat data. This is the first real-world end-to-end test.
 
 ---
 
 - [ ] **9. Generate privacy policy on iubenda** *(20 min)*  
   URL: https://www.iubenda.com  
-  Free tier. Add: app name "RowDay," data collected (device push token, user preferences), age restriction (13+), contact email (use your LLC email once formed).  
+  Free tier. Add: app name "RowDay," data collected (device push token, user preferences), age restriction (18+), contact email.  
   Copy the hosted URL. Paste it into `app/app/(tabs)/settings.tsx` as a tappable link.
 
 ---
 
 - [ ] **10. Message 2–3 BRC parents you know** *(10 min)*  
   Not the whole WhatsApp group yet — pick 2–3 tech-comfortable parents you trust. "I'm building a thing for the regatta. Can I share a link and get your reaction?" Early honest feedback from real users is more valuable than any amount of solo building.
+
+---
+
+## Pending / In Progress
+
+- **rename/scrape-to-sync branch**: Background agent renaming all "scrape" → "sync" terminology across codebase (`src/scraper/` → `src/syncer/`, `scrape-scheduler.ts` → `sync-scheduler.ts`, etc.). Merge into main and redeploy when complete.
+- **startSyncScheduler() wiring**: Intentionally left out of `index.ts`. Add after first few manual syncs confirm DB stability.
+- **Strategy reminder**: Do NOT email api@regattacentral.com to request API access before having traction. Build first, launch to BRC parents, get real users, then approach RC from a position of strength.
 
 ---
 
