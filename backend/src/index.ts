@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { sql } from "./db/client.js";
 import {
   getRegattas,
   getRegatta,
@@ -144,11 +145,25 @@ const syncStatus = new Map<
 // Routes
 // ---------------------------------------------------------------------------
 
-app.get("/health", (c) => {
+app.get("/health", async (c) => {
+  const dbUrl = process.env.DATABASE_URL ?? "not set";
+  const dbHost = dbUrl.match(/@([^:/]+)/)?.[1] ?? "unknown";
+
+  let dbStatus = "unknown";
+  try {
+    await Promise.race([
+      sql`SELECT 1`.then(() => { dbStatus = "ok"; }),
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+    ]);
+  } catch (err) {
+    dbStatus = err instanceof Error ? err.message : "error";
+  }
+
   return c.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+    db: { status: dbStatus, host: dbHost },
   });
 });
 
