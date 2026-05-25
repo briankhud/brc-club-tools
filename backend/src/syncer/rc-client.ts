@@ -1,14 +1,14 @@
 /**
- * Regatta Central HTML scraper
+ * Regatta Central HTML syncer
  *
  * RC does not publish a public API. The v3 API (api.regattacentral.com/v3.0)
  * is decommissioned — all endpoints 404. The v4 API is OAuth-gated.
  *
- * Instead we scrape the server-rendered HTML pages on www.regattacentral.com
+ * Instead we sync from the server-rendered HTML pages on www.regattacentral.com
  * using Cheerio. No headless browser is needed — all data pages are plain HTML
  * tables that can be fetched with a browser User-Agent and parsed directly.
  *
- * Legal basis: scraping publicly accessible pages is not unauthorized access
+ * Legal basis: syncing publicly accessible pages is not unauthorized access
  * under the CFAA per hiQ Labs v. LinkedIn (9th Cir. 2022). We only read data
  * that any parent can view in a browser without logging in.
  *
@@ -26,7 +26,7 @@
  * Test fixture: job_id=10115 (CSSRA Championships 2026, St. Catharines ON)
  *   - 676 entries, 131 clubs, 40 events, 194 races over 3 days
  *
- * See ./rc-scraping-notes.md for detailed DOM observations.
+ * See ./rc-sync-notes.md for detailed DOM observations.
  */
 
 import * as cheerio from "cheerio";
@@ -118,7 +118,7 @@ export interface RCHeatSheetResult {
 }
 
 // ---------------------------------------------------------------------------
-// Browser singleton — one Chromium process shared across all scrapes
+// Browser singleton — one Chromium process shared across all syncs
 // ---------------------------------------------------------------------------
 
 let _browser: Browser | null = null;
@@ -151,7 +151,7 @@ async function getBrowserContext(): Promise<BrowserContext> {
       },
     });
 
-    // Block image/font/media requests — not needed for HTML scraping
+    // Block image/font/media requests — not needed for HTML syncing
     await _context.route(
       /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|mp4|webm)(\?.*)?$/i,
       (route) => route.abort()
@@ -199,13 +199,13 @@ async function politeGet(url: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Public scraping functions
+// Public syncing functions
 // ---------------------------------------------------------------------------
 
 /**
  * Fetch a list of upcoming regattas (Canadian + US by default).
  *
- * Scrapes the /regattas listing page with server-side filters for country.
+ * Syncs the /regattas listing page with server-side filters for country.
  * Pass `country="CA"` for Canada-only, `"US"` for US-only, or omit for both.
  *
  * For past regattas (with populated heat sheets and results), append `?results`
@@ -521,7 +521,7 @@ export async function fetchResults(jobId: string): Promise<RCHeat[]> {
  * Strategy:
  *   1. Try the CMS HTML page (/v3/cms/regatta/{id}/heat_sheet). If it has
  *      tabular data, parse it via parseHeatHtml().
- *   2. If the CMS page is empty/placeholder, scrape the overview page for
+ *   2. If the CMS page is empty/placeholder, sync the overview page for
  *      PDF links and return them in pdf_urls for the caller to download.
  *
  * Returns { heats, pdf_urls }. If heats is non-empty, ignore pdf_urls.
@@ -543,7 +543,7 @@ export async function fetchHeatSheet(jobId: string): Promise<RCHeatSheetResult> 
     console.warn(`fetchHeatSheet(${jobId}): CMS fetch failed (${(err as Error).message})`);
   }
 
-  // Step 2: Scrape overview page for PDF bulletin/schedule links
+  // Step 2: Sync overview page for PDF bulletin/schedule links
   const pdfUrls = await findHeatSheetPdfs(jobId);
   if (pdfUrls.length === 0) {
     return { heats: [], pdf_urls: [] };
@@ -615,7 +615,7 @@ async function downloadPdf(url: string): Promise<Buffer | null> {
 }
 
 /**
- * Scrape the regatta overview page for linked PDFs (heat sheet, schedule,
+ * Sync the regatta overview page for linked PDFs (heat sheet, schedule,
  * bulletin). Returns absolute URLs for any .pdf links found.
  */
 export async function findHeatSheetPdfs(jobId: string): Promise<string[]> {

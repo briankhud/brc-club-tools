@@ -1,7 +1,7 @@
 /**
- * Manual integration test for the RC scraper.
+ * Manual integration test for the RC syncer.
  * Run from the backend/ directory with:
- *   npx tsx src/scraper/rc-test.ts
+ *   npx tsx src/syncer/rc-test.ts
  *
  * Uses CSSRA Championships 2026 (job_id=10115) as the test fixture.
  * Expected: 40 events, 131 clubs, entries show "Available" sentinel (pre-release).
@@ -19,7 +19,7 @@ import {
 const JOB_ID = "10115"; // CSSRA Championships 2026, St. Catharines ON
 
 async function run() {
-  console.log(`\n── RC Scraper integration test ── job_id=${JOB_ID}\n`);
+  console.log(`\n── RC Syncer integration test ── job_id=${JOB_ID}\n`);
 
   // 1. Overview
   console.log("1. Regatta overview");

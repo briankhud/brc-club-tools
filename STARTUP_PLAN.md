@@ -32,7 +32,7 @@ Each role below maps to a specialized Claude agent (or Brian directly, for items
 
 | Role | Agent Invocation | Owns | Status |
 |------|-----------------|------|--------|
-| **Backend Engineer** | "You are the RowDay Backend Engineer" | `/backend/` — Hono API, database wiring, scraper integration, scheduler | READY: scraper works, schema exists, API has stubs. Need to wire scraper → DB → API. |
+| **Backend Engineer** | "You are the RowDay Backend Engineer" | `/backend/` — Hono API, database wiring, syncer integration, scheduler | READY: syncer works, schema exists, API has stubs. Need to wire syncer → DB → API. |
 | **iOS / React Native Engineer** | "You are the RowDay iOS/RN Engineer" | `/app/` — all Expo/RN screens, navigation, components, push notifications | READY: screens scaffolded, components built. Need: push notification wiring, tab icons, Settings navigation, age gate. |
 | **DevOps / Infrastructure** | "You are the RowDay DevOps Engineer" | Railway deployment, env vars, Postgres provisioning, CI | READY: codebase compiles. Need: Railway project setup, Dockerfile, env secrets, Railway Postgres. |
 
@@ -49,7 +49,7 @@ Each role below maps to a specialized Claude agent (or Brian directly, for items
 | Role | Agent Invocation | Owns | Status |
 |------|-----------------|------|--------|
 | **Design** | "You are the RowDay Design Lead" | Figma components, branding, app icon, screenshots, App Store assets | WAITING: current UI is functional but unstyled icons. After first regatta. |
-| **Data / Scraping** | "You are the RowDay Data Engineer" | Scraper maintenance, heat-sheet PDF parsing, edge case handling, scraper health monitoring | ACTIVE: scraper works for HTML; PDF path (heat sheets) needs work. |
+| **Data / Syncing** | "You are the RowDay Data Engineer" | Syncer maintenance, heat-sheet PDF parsing, edge case handling, syncer health monitoring | ACTIVE: syncer works for HTML; PDF path (heat sheets) needs work. |
 
 ---
 
@@ -57,23 +57,24 @@ Each role below maps to a specialized Claude agent (or Brian directly, for items
 
 ### Target Event: Lake Ontario Invitational (~early June 2026)
 
-Note: Web search did not find a confirmed RC job_id for this event yet. Check `https://www.regattacentral.com/regattas` and search "Lake Ontario" around May 28 to get the job_id when entries open. The scraper is already proven on job_id=10115 (CSSRA 2026).
+Note: Web search did not find a confirmed RC job_id for this event yet. Check `https://www.regattacentral.com/regattas` and search "Lake Ontario" around May 28 to get the job_id when entries open. The syncer is already proven on job_id=10115 (CSSRA 2026).
 
 ---
 
 ### Week 1–2 (May 25 – June 7): Regatta-Ready MVP
 
-**Goal:** A working app Brian can hand to BRC parents at the regatta. Must work on real phones pointed at a live Railway backend scraping real RC data.
+**Goal:** A working app Brian can hand to BRC parents at the regatta. Must work on real phones pointed at a live Railway backend syncing real RC data.
 
 #### Backend tasks
 
 | Task | File(s) | Notes |
 |------|---------|-------|
-| Wire scraper output → Postgres | `backend/src/index.ts`, new `backend/src/db/client.ts` | Replace all hardcoded `REGATTAS`, `BB_2026_EVENTS`, etc. with DB queries using the `postgres` package (already a dependency). |
-| Add scraper trigger endpoint | `backend/src/index.ts` | `POST /api/admin/scrape?job_id=NNNNN` — triggers a one-shot scrape of a new regatta and seeds the DB. Protected by a `ADMIN_SECRET` header. |
-| Wire scheduler to DB | `backend/src/jobs/scrape-scheduler.ts` (line 18) | Replace `ACTIVE_REGATTA_IDS: string[] = []` stub with a DB query: `SELECT rc_regatta_id FROM regatta WHERE status = 'active'`. |
+| Wire syncer output → Postgres | `backend/src/index.ts`, new `backend/src/db/client.ts` | Replace all hardcoded `REGATTAS`, `BB_2026_EVENTS`, etc. with DB queries using the `postgres` package (already a dependency). |
+| Add sync trigger endpoint | `backend/src/index.ts` | `POST /api/admin/sync?job_id=NNNNN` — triggers a one-shot sync of a new regatta and seeds the DB. Protected by a `ADMIN_SECRET` header. |
+| Wire scheduler to DB | `backend/src/jobs/sync-scheduler.ts` (line 18) | Replace `ACTIVE_REGATTA_IDS: string[] = []` stub with a DB query: `SELECT rc_regatta_id FROM regatta WHERE status = 'active'`. |
 | Push notification sender | New `backend/src/jobs/notify.ts` | Use `expo-server-sdk` (already a dependency) to send notifications when `race.status` changes to `official`. |
 | Register device token endpoint | `backend/src/index.ts` | `POST /api/subscriptions` — stores Expo push token + regatta_id + optional athlete name in `subscription` table. |
+
 | Update results endpoint | `backend/src/index.ts` | Add `GET /api/regattas/:id/results` that returns all races with status official/unofficial and their lanes. Currently missing. |
 
 #### App tasks
@@ -141,7 +142,7 @@ This section catalogs every significant stub, TODO, and missing connection in th
 
 **Problem: Entire API runs on hardcoded in-memory data.**
 
-Lines 16–230 are hardcoded arrays (`REGATTAS`, `BRC_ATHLETES`, `BB_2026_EVENTS`, `BB_2026_CLUBS`, `E1_HEATS`, `E5_HEATS`). These will never update. The real scraper (`rc-client.ts`) exists and works but is never called from the API routes.
+Lines 16–230 are hardcoded arrays (`REGATTAS`, `BRC_ATHLETES`, `BB_2026_EVENTS`, `BB_2026_CLUBS`, `E1_HEATS`, `E5_HEATS`). These will never update. The real syncer (`rc-client.ts`) exists and works but is never called from the API routes.
 
 **Fix required:**
 1. Create `backend/src/db/client.ts` — instantiate a `postgres` client from `process.env.DATABASE_URL`.
@@ -152,18 +153,18 @@ Lines 16–230 are hardcoded arrays (`REGATTAS`, `BRC_ATHLETES`, `BB_2026_EVENTS
 - `GET /api/regattas/:id/results` — needed by the results tab
 - `POST /api/subscriptions` — needed for push notifications
 - `GET /api/regattas/:id/athletes?q=` — needed for athlete search
-- `POST /api/admin/scrape` — needed to seed a new regatta
+- `POST /api/admin/sync` — needed to seed a new regatta
 - `GET /health` — EXISTS (line 236), good
 
 ---
 
-### 3.2 Scraper Scheduler — `backend/src/jobs/scrape-scheduler.ts`
+### 3.2 Sync Scheduler — `backend/src/jobs/sync-scheduler.ts`
 
 **Problem: `ACTIVE_REGATTA_IDS` is hardcoded empty.**
 
 Line 18: `const ACTIVE_REGATTA_IDS: string[] = []`
 
-This means the scheduler runs every 60 seconds but never scrapes anything because `scrapeActiveRegattas()` returns immediately at line 28.
+This means the scheduler runs every 60 seconds but never syncs anything because `syncActiveRegattas()` returns immediately at line 28.
 
 **Fix required (line 18):**
 ```typescript
@@ -173,9 +174,9 @@ async function getActiveRegattaIds(): Promise<string[]> {
   return rows.map(r => r.rc_regatta_id);
 }
 ```
-Then update `scrapeActiveRegattas()` to call this function instead of reading the array.
+Then update `syncActiveRegattas()` to call this function instead of reading the array.
 
-**Problem: Scraper fetches data but does nothing with it (line 47).**
+**Problem: Syncer fetches data but does nothing with it (line 47).**
 
 Line 47: `// TODO: diff fetched data against DB, persist changes, and fire push notifications`
 
@@ -291,7 +292,7 @@ During local dev on physical device, temporarily set this to `http://YOUR-LOCAL-
 
 **Problem: `.env.example` references the defunct RC v3 API.**
 
-Line 4: `RC_API_BASE=https://api.regattacentral.com/v3.0` — this API is decommissioned (all endpoints 404, per `rc-client.ts` line 6). The scraper uses HTML scraping, not this URL.
+Line 4: `RC_API_BASE=https://api.regattacentral.com/v3.0` — this API is decommissioned (all endpoints 404, per `rc-client.ts` line 6). The syncer uses HTML syncing, not this URL.
 
 **Fix:** Remove `RC_API_BASE` from `.env.example`. Update with:
 ```
@@ -421,11 +422,11 @@ curl https://rowday-backend-production.up.railway.app/health
 # Expected: {"status":"ok","timestamp":"..."}
 ```
 
-Then trigger a test scrape:
+Then trigger a test sync:
 ```bash
 curl -X POST \
   -H "X-Admin-Secret: YOUR_SECRET" \
-  "https://rowday-backend-production.up.railway.app/api/admin/scrape?job_id=10115"
+  "https://rowday-backend-production.up.railway.app/api/admin/sync?job_id=10115"
 ```
 
 **Optional: Redis**
@@ -486,7 +487,7 @@ This creates a real native build (no App Store required). For Android: share the
 |--------|--------|----------------|
 | Parents who open the app | 10 | Expo Go access logs / Railway request logs |
 | Parents who complete onboarding | 7 | DB: `SELECT COUNT(*) FROM subscription` |
-| Scraper uptime during race day | 95%+ | Railway logs show no 5xx errors during 7am–5pm window |
+| Syncer uptime during race day | 95%+ | Railway logs show no 5xx errors during 7am–5pm window |
 | Countdown accuracy | Within ±60 seconds | Manual spot-check during racing |
 | Positive verbal feedback | "I used this" from 3+ parents | Brian's judgment |
 | Critical bug during racing | 0 | Brian monitors Slack/Railway logs from the boathouse |
@@ -625,7 +626,7 @@ Search type: Entity Name. If results return "No business entities found," the na
 | Tier | Price | Included |
 |------|-------|----------|
 | **Free** | $0 | Any parent can follow any club; basic schedule + results |
-| **Club Pro** | $29/mo or $249/yr per club | Priority scraping (2-min refresh vs 5-min), club branding (logo + colors in app), push notifications for all club parents, heat-by-heat results digest email |
+| **Club Pro** | $29/mo or $249/yr per club | Priority syncing (2-min refresh vs 5-min), club branding (logo + colors in app), push notifications for all club parents, heat-by-heat results digest email |
 | **Club Elite** | $79/mo or $699/yr per club | Everything in Pro + athlete-level notifications (parents opt in to get notified only for their rower), exportable results CSVs, multi-regatta season dashboard |
 
 **Comparable benchmarks:**
@@ -678,13 +679,13 @@ Search type: Entity Name. If results return "No business entities found," the na
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| **RC blocks scraping** (rate-limiting, CAPTCHAs, robots.txt change, legal threat) | Medium | High | 1. Scrape politely: 800ms delay between requests (already implemented). 2. Rotate request cadence. 3. Cache aggressively: scrape once per 2 min max during racing. 4. Legal basis is solid (hiQ v. LinkedIn, public data, no ToS accepted). 5. Long-term: negotiate data partnership from a position of user traction. If blocked, fall back to PDF heat sheet parsing (already scaffolded in `fetchHeatSheet`). |
-| **App Store rejection** | Medium | Medium | Common reasons: COPPA non-compliance, missing privacy policy, scraping other services (Apple cares less about this than the privacy issue). Mitigations: age gate is required, privacy policy must be live URL, App Store description should say "aggregates publicly available regatta data." Keep description neutral. |
+| **RC blocks syncing** (rate-limiting, CAPTCHAs, robots.txt change, legal threat) | Medium | High | 1. Sync politely: 800ms delay between requests (already implemented). 2. Rotate request cadence. 3. Cache aggressively: sync once per 2 min max during racing. 4. Legal basis is solid (hiQ v. LinkedIn, public data, no ToS accepted). 5. Long-term: negotiate data partnership from a position of user traction. If blocked, fall back to PDF heat sheet parsing (already scaffolded in `fetchHeatSheet`). |
+| **App Store rejection** | Medium | Medium | Common reasons: COPPA non-compliance, missing privacy policy, syncing other services (Apple cares less about this than the privacy issue). Mitigations: age gate is required, privacy policy must be live URL, App Store description should say "aggregates publicly available regatta data." Keep description neutral. |
 | **COPPA violation** | Low | High | App is explicitly parent-facing. Age gate blocks self-identified minors. We do not collect name, email, or any PII from users under 13. The subscription table stores device token + regatta preference only. No analytics on individual children. iubenda policy should state this explicitly. |
 | **Competition from other builders** | Low | Medium | The rowing market is small (~4,000 clubs US/Canada). No VC would fund a direct competitor for this niche. Risk is a motivated individual builder. Moat is execution speed and community trust — ship first, build relationships fast. |
 | **Brian time availability** (side project, day job, parent) | High | High | This is the real constraint. Mitigations: 1. Aggressive use of Claude for all coding tasks — Brian directs, Claude builds. 2. Ruthless MVP scope: only what's needed for one regatta. 3. Set "regatta day" as a hard deadline — everything before it is MVP, everything after is polish. 4. If Brian hits a wall, the backend-as-deployed-on-Railway still works for parents even if the app isn't updated for weeks. 5. Build the LLC and business infrastructure in parallel using 10-min micro-sessions during commutes. |
 | **Regatta cancelled / postponed** | Low | Low | First regatta is a proof-of-concept. If Lake Ontario Invitational moves, find the next BRC event on the calendar (typically every 2–3 weeks in spring season). |
-| **Playwright / Chromium costs on Railway** | Medium | Medium | Playwright with Chromium is memory-heavy (~300MB baseline). Railway Hobby plan includes up to 512MB RAM. Either: (a) switch to Cheerio-only scraping where possible (already partially done in rc-client.ts), or (b) run Playwright as a separate Railway service with more memory. For MVP, monitor RAM usage and upgrade to Pro plan ($20/mo) if needed. |
+| **Playwright / Chromium costs on Railway** | Medium | Medium | Playwright with Chromium is memory-heavy (~300MB baseline). Railway Hobby plan includes up to 512MB RAM. Either: (a) switch to Cheerio-only syncing where possible (already partially done in rc-client.ts), or (b) run Playwright as a separate Railway service with more memory. For MVP, monitor RAM usage and upgrade to Pro plan ($20/mo) if needed. |
 
 ---
 
@@ -698,10 +699,10 @@ Do these in roughly this order. Estimated total time for items 1–5: about 2 ho
   Go to: https://www.regattacentral.com/regattas  
   Search "Lake Ontario." When the regatta appears, note the job_id from the URL: `/regatta/?job_id=NNNNN`.  
   If it's not listed yet, check back daily — regattas typically appear 4–6 weeks before race day.  
-  Once you have the job_id, run the scraper test:
+  Once you have the job_id, run the syncer test:
   ```bash
   cd /Users/brianhudson/projects/BRC/backend
-  JOB_ID=NNNNN npx tsx src/scraper/rc-test.ts
+  JOB_ID=NNNNN npx tsx src/syncer/rc-test.ts
   ```
   Confirm you see 40+ events and 10+ clubs.
 

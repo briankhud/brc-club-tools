@@ -9,9 +9,9 @@ Every command is copy-paste ready. Takes about 15–20 minutes.
 
 Playwright + Chromium uses ~300–400 MB of RAM. Railway's Hobby plan gives each service
 512 MB. This is tight but workable for MVP because the browser is only active during
-scrape cycles (7 AM–7 PM race days). Outside racing hours Chromium idles at ~150 MB.
+sync cycles (7 AM–7 PM race days). Outside racing hours Chromium idles at ~150 MB.
 
-If you hit out-of-memory crashes during a regatta, you can split the scraper into its
+If you hit out-of-memory crashes during a regatta, you can split the syncer into its
 own Railway service with a higher memory limit. That's not needed now.
 
 ---
@@ -126,8 +126,8 @@ In the Railway dashboard, go to your **rowday** service (not the Postgres servic
 | `DATABASE_URL` | `postgresql://postgres:...@...` | Copy from Postgres service → Connect tab. Railway may set this automatically if you link the services. |
 | `PORT` | `3000` | The port Hono listens on. Railway sets `PORT` automatically too — but set it explicitly to be safe. |
 | `NODE_ENV` | `production` | Enables SSL for Postgres, disables dev-only logging. |
-| `RC_REQUEST_DELAY_MS` | `600` | Polite scraping delay in milliseconds. Don't set lower than 500. |
-| `ADMIN_SECRET` | `<random hex string>` | Protects `POST /api/admin/scrape`. Generate one with: `openssl rand -hex 32` |
+| `RC_REQUEST_DELAY_MS` | `600` | Polite syncing delay in milliseconds. Don't set lower than 500. |
+| `ADMIN_SECRET` | `<random hex string>` | Protects `POST /api/admin/sync`. Generate one with: `openssl rand -hex 32` |
 
 ### Generate the ADMIN_SECRET
 
@@ -136,7 +136,7 @@ openssl rand -hex 32
 ```
 
 Copy the output and paste it into Railway as `ADMIN_SECRET`. Save it somewhere safe —
-you'll need it to trigger scrapes.
+you'll need it to trigger syncs.
 
 ### Linking Postgres to the API service (auto-injects DATABASE_URL)
 
@@ -206,9 +206,9 @@ If you get a 502 or connection refused, check logs with `railway logs`.
 
 ---
 
-## 9. Trigger the first scrape
+## 9. Trigger the first sync
 
-Once the regatta is live on RegattaCentral, run a full scrape to seed the database.
+Once the regatta is live on RegattaCentral, run a full sync to seed the database.
 Replace `NNNNN` with the actual RegattaCentral job_id for the Lake Ontario Invitational
 (find it in the RC URL: `regattacentral.com/regatta/?job_id=NNNNN`).
 
@@ -217,16 +217,16 @@ curl -X POST \
   -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"job_id":"NNNNN"}' \
-  https://YOUR-APP.up.railway.app/api/admin/scrape
+  https://YOUR-APP.up.railway.app/api/admin/sync
 ```
 
-Expected response (takes 10–30 seconds while Playwright scrapes):
+Expected response (takes 10–30 seconds while Playwright syncs):
 
 ```json
-{"message":"Scrape complete","heats":194,"clubs":131,"events":40}
+{"message":"Sync complete","heats":194,"clubs":131,"events":40}
 ```
 
-After the scrape, mark the regatta as active in Postgres so the scheduler starts
+After the sync, mark the regatta as active in Postgres so the scheduler starts
 polling it every 60 seconds during racing hours:
 
 ```bash
@@ -269,7 +269,7 @@ railway logs --tail
 Or open the Railway dashboard → your service → **Logs** tab.
 
 Key things to watch for on race day:
-- `Scraping regatta NNNNN...` — scheduler fired, scrape in progress
+- `Syncing regatta NNNNN...` — scheduler fired, sync in progress
 - `Error` lines — any HTTP 4xx/5xx from RegattaCentral (usually transient)
 - `heap out of memory` — Playwright memory pressure; see note at top of this doc
 
@@ -292,15 +292,15 @@ Option A (`playwright install chromium --with-deps`) may have failed. Switch to 
 - Make sure the schema has been applied (step 5)
 - Check `NODE_ENV=production` is set so the SSL config is correct
 
-### "Error: ADMIN_SECRET is required" on scrape endpoint
+### "Error: ADMIN_SECRET is required" on sync endpoint
 
 The backend checks `X-Admin-Secret` header. Make sure the value in your `curl` command
 matches the `ADMIN_SECRET` environment variable exactly.
 
-### Scheduler runs but never scrapes
+### Scheduler runs but never syncs
 
-The scheduler only scrapes regatta IDs with `status='active'` in the database.
-After the first manual scrape (step 9), you must set the status manually:
+The scheduler only syncs regatta IDs with `status='active'` in the database.
+After the first manual sync (step 9), you must set the status manually:
 
 ```sql
 UPDATE regatta SET status='active' WHERE rc_regatta_id='NNNNN';
@@ -333,10 +333,10 @@ railway up
 # 8. Verify
 curl https://YOUR-APP.up.railway.app/health
 
-# 9. First scrape
+# 9. First sync
 curl -X POST -H "X-Admin-Secret: SECRET" \
   -d '{"job_id":"NNNNN"}' \
-  https://YOUR-APP.up.railway.app/api/admin/scrape
+  https://YOUR-APP.up.railway.app/api/admin/sync
 
 # 10. Activate regatta
 psql "DATABASE_URL" -c "UPDATE regatta SET status='active' WHERE rc_regatta_id='NNNNN';"

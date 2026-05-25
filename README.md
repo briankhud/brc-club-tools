@@ -20,7 +20,7 @@ See [`app/README.md`](app/README.md) for setup instructions.
 
 ### RowDay Backend (`backend/`)
 
-Node.js + Hono REST API that serves regatta data to the app. Backed by PostgreSQL, with a cron-based scraper for pulling live data from Regatta Central.
+Node.js + Hono REST API that serves regatta data to the app. Backed by PostgreSQL, with a cron-based syncer for pulling live data from Regatta Central.
 
 See [`backend/README.md`](backend/README.md) for setup instructions.
 
@@ -38,7 +38,7 @@ This repo is a workspace for building out club tooling including:
 ## Status
 
 - Registration migration research: see board discussion doc above
-- RowDay app: initial scaffold complete, hardcoded seed data for Brighton Burn 2026, Regatta Central scraper stubbed
+- RowDay app: initial scaffold complete, hardcoded seed data for Brighton Burn 2026, Regatta Central syncer stubbed
 
 ## Contact
 
