@@ -132,6 +132,15 @@ function mapRace(r: DbRace, lanes: DbLaneWithDetails[]) {
 }
 
 // ---------------------------------------------------------------------------
+// In-memory scrape status tracker (fine for single-instance MVP)
+// ---------------------------------------------------------------------------
+
+const scrapeStatus = new Map<
+  string,
+  { status: "running" | "done" | "error"; message: string; started: string }
+>();
+
+// ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
@@ -362,6 +371,7 @@ app.post("/api/subscriptions", async (c) => {
 });
 
 // POST /api/admin/scrape  [requires X-Admin-Secret header]
+// Returns 202 immediately; actual scrape runs in the background.
 app.post("/api/admin/scrape", async (c) => {
   const adminSecret = process.env.ADMIN_SECRET;
   const provided = c.req.header("X-Admin-Secret");
@@ -382,6 +392,41 @@ app.post("/api/admin/scrape", async (c) => {
     return c.json({ error: "job_id is required" }, 400);
   }
 
+  // Mark as running and kick off background scrape
+  scrapeStatus.set(jobId, {
+    status: "running",
+    message: "Scrape in progress",
+    started: new Date().toISOString(),
+  });
+
+  // Fire-and-forget — do not await
+  runScrapeInBackground(jobId);
+
+  return c.json(
+    { message: `Scrape started for job_id ${jobId}`, job_id: jobId },
+    202
+  );
+});
+
+// GET /api/admin/scrape/:jobId  — poll scrape status
+app.get("/api/admin/scrape/:jobId", (c) => {
+  const adminSecret = process.env.ADMIN_SECRET;
+  const provided = c.req.header("X-Admin-Secret");
+
+  if (!adminSecret || provided !== adminSecret) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const { jobId } = c.req.param();
+  const entry = scrapeStatus.get(jobId);
+  if (!entry) {
+    return c.json({ error: "No scrape found for that job_id" }, 404);
+  }
+  return c.json({ job_id: jobId, ...entry });
+});
+
+// Background scrape worker
+async function runScrapeInBackground(jobId: string): Promise<void> {
   try {
     // 1. Fetch regatta overview + upsert
     const overview = await fetchRegattaOverview(jobId);
@@ -451,7 +496,6 @@ app.post("/api/admin/scrape", async (c) => {
       racesCount++;
 
       for (const rcLane of heat.lanes) {
-        // Ensure an entry row exists for this lane
         const clubId = clubMap.get(rcLane.club) ?? null;
         const entry = await upsertEntry({
           event_id: eventId,
@@ -464,34 +508,30 @@ app.post("/api/admin/scrape", async (c) => {
           race_id: race.id,
           entry_id: entry.id,
           lane_number: rcLane.lane,
-          time_ms: rcLane.seed_time
-            ? parseTimeToMs(rcLane.seed_time)
-            : null,
+          time_ms: rcLane.seed_time ? parseTimeToMs(rcLane.seed_time) : null,
         });
       }
     }
 
     await closeBrowser();
 
-    return c.json({
-      message: `Scrape complete for job_id=${jobId}`,
-      events_count: rcEvents.length,
-      clubs_count: rcClubs.length,
-      races_count: racesCount,
+    const summary = `Scraped ${rcEvents.length} events, ${rcClubs.length} clubs, ${racesCount} races`;
+    console.log(`Scrape complete for job_id=${jobId}: ${summary}`);
+    scrapeStatus.set(jobId, {
+      status: "done",
+      message: summary,
+      started: scrapeStatus.get(jobId)?.started ?? new Date().toISOString(),
     });
   } catch (err) {
-    console.error(`POST /api/admin/scrape (job_id=${jobId}):`, err);
-    // Try to close browser even on error
+    console.error(`Background scrape failed (job_id=${jobId}):`, err);
     await closeBrowser().catch(() => {});
-    return c.json(
-      {
-        error:
-          err instanceof Error ? err.message : "Scrape failed",
-      },
-      500
-    );
+    scrapeStatus.set(jobId, {
+      status: "error",
+      message: err instanceof Error ? err.message : "Scrape failed",
+      started: scrapeStatus.get(jobId)?.started ?? new Date().toISOString(),
+    });
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
