@@ -617,6 +617,25 @@ Do these in roughly this order. Items 2, 3, and 6 are already done — start wit
 
 These are real engineering tasks that need doing before the project is production-solid, but are not blockers for the first regatta demo.
 
+### Syncer: Residential IP Strategy
+
+**Problem:** Railway runs on AWS/GCP datacenter IPs which RegattaCentral blocks with 403, even when using Playwright's real browser TLS fingerprint. The syncer works fine from residential IPs (your Mac, home network).
+
+**Current workaround:** Run `DATABASE_URL="<railway public url>" npx tsx src/debug-sync.ts <job_id>` from your Mac on race day. Data writes directly to Railway Postgres; the API serves it normally.
+
+**Long-term options (pick one when you have real users):**
+- **Residential proxy** (~$10-50/mo) — Bright Data, Oxylabs, Smartproxy. One-line Playwright config change. Cost at RowDay's usage is ~pennies/regatta.
+- **Non-AWS VPS** — Hetzner/Vultr/DigitalOcean have better IP reputations. Run just the syncer there, Railway stays as API host. ~$5/mo.
+- **Raspberry Pi at home** — Always-on residential IP, runs Playwright, free after hardware cost. Ideal if you want fully automated race-day syncing without cloud costs.
+
+### Regatta Discovery Script
+
+**Problem:** Currently you have to manually look up job_ids on regattacentral.com. `fetchRegattaList()` already exists in `rc-client.ts` and parses RC's full regatta listing.
+
+**What to build:** `src/discover-regattas.ts` — fetches upcoming Canadian + US regattas, shows a list with job_ids, lets you pick which ones to mark as active in the DB. Run from Mac before each race season.
+
+**Estimated time:** 30 minutes
+
 ### Dev / Production Environment Split
 
 **Problem:** Currently there is only one Railway environment (`production`). All test syncs, schema experiments, and code changes deploy directly against the live database. This is fine for a single developer in week 1 but will cause problems as soon as there are real users — a bad test sync could corrupt data parents are actively reading.
