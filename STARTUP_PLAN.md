@@ -535,7 +535,7 @@ Do these in roughly this order. Items 2, 3, and 6 are already done — start wit
   ```bash
   curl -X POST \
     -H "X-Admin-Secret: YOUR_SECRET" \
-    "https://YOUR-RAILWAY-URL.up.railway.app/api/admin/sync?job_id=NNNNN"
+    "https://rowday-backend-production.up.railway.app/api/admin/sync?job_id=NNNNN"
   # Returns 202 immediately. Poll GET /api/admin/sync/:jobId for status.
   ```
   Confirm you see 40+ events and 10+ clubs in the response.
@@ -577,9 +577,9 @@ Do these in roughly this order. Items 2, 3, and 6 are already done — start wit
 
 - [ ] **7. Update `app/.env` to Railway URL and test on phone** *(5 min)*  
   ```
-  EXPO_PUBLIC_API_URL=https://YOUR-RAILWAY-URL.up.railway.app
+  EXPO_PUBLIC_API_URL=https://rowday-backend-production.up.railway.app
   ```
-  Currently points to `localhost:3000`. Update to Railway URL, then:
+  ✅ Updated. Then run:
   ```bash
   cd /Users/brianhudson/projects/BRC/app
   npx expo start --tunnel
