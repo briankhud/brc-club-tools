@@ -1,6 +1,6 @@
-# RegattaCentral scraping notes
+# RegattaCentral sync notes
 
-Observations from scraping CSSRA Championships 2026 (`job_id=10115`) on 2026-05-24. Use these as a starting point for the Cheerio scraper.
+Observations from syncing CSSRA Championships 2026 (`job_id=10115`) on 2026-05-24. Use these as a starting point for the Cheerio syncer.
 
 ## Live job_ids to test against
 
@@ -71,7 +71,7 @@ The club-filter `<select>` element on this page gives you the full `{club_name �
 
 ### Heat sheet — the gotcha
 
-`/v3/cms/regatta/{id}/heat_sheet` is a CMS slot, not the canonical heat sheet location. For CSSRA the real heat sheet (with lanes/seedings) is a PDF dropped into `/cms/uploads/canadian_secondary_schools_rowing_association/files/…`. So your scraper should:
+`/v3/cms/regatta/{id}/heat_sheet` is a CMS slot, not the canonical heat sheet location. For CSSRA the real heat sheet (with lanes/seedings) is a PDF dropped into `/cms/uploads/canadian_secondary_schools_rowing_association/files/…`. So your syncer should:
 
 1. Try the CMS heat-sheet page; if it has tabular HTML, parse it.
 2. Otherwise, look on the overview page for linked PDF bulletins/schedules and download those.

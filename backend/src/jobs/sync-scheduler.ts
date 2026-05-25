@@ -1,10 +1,10 @@
 /**
- * Scrape scheduler — polls Regatta Central for live data during racing windows.
+ * Sync scheduler — polls Regatta Central for live data during racing windows.
  *
  * Strategy:
  *   - Every 60 seconds while regattas are "active" (status = 'active' in DB),
  *     fetch updated results for each active regatta.
- *   - Diffs DB lanes against freshly scraped results and upserts changed rows.
+ *   - Diffs DB lanes against freshly synced results and upserts changed rows.
  *   - Fires Expo push notifications for any lanes that newly have a result.
  *
  * Usage: imported and started from src/index.ts in production.
@@ -15,7 +15,7 @@ import Expo, { type ExpoPushMessage } from "expo-server-sdk";
 import {
   fetchResults,
   closeBrowser,
-} from "../scraper/rc-client.js";
+} from "../syncer/rc-client.js";
 import {
   getActiveRegattaIds,
   getRacesForRegatta,
@@ -118,7 +118,7 @@ async function sendRaceResultNotification(
   }
 }
 
-async function scrapeActiveRegattas(): Promise<void> {
+async function syncActiveRegattas(): Promise<void> {
   // 1. Query DB for active regatta IDs each tick (not a static array)
   let activeRegattaRcIds: string[];
   try {
@@ -129,16 +129,16 @@ async function scrapeActiveRegattas(): Promise<void> {
   }
 
   if (activeRegattaRcIds.length === 0) {
-    return; // nothing to scrape
+    return; // nothing to sync
   }
 
   if (!isRacingHour()) {
-    console.log("[scheduler] Outside racing window — skipping scrape");
+    console.log("[scheduler] Outside racing window — skipping sync");
     return;
   }
 
   console.log(
-    `[scheduler] Scraping ${activeRegattaRcIds.length} active regatta(s)…`
+    `[scheduler] Syncing ${activeRegattaRcIds.length} active regatta(s)…`
   );
 
   for (const rcRegattaId of activeRegattaRcIds) {
@@ -156,7 +156,7 @@ async function scrapeActiveRegattas(): Promise<void> {
       const regatta = await getRegattaByRcId(rcRegattaId);
       if (!regatta) {
         console.warn(
-          `[scheduler] No DB row for rc_regatta_id=${rcRegattaId} — run admin scrape first`
+          `[scheduler] No DB row for rc_regatta_id=${rcRegattaId} — run admin sync first`
         );
         continue;
       }
@@ -266,7 +266,7 @@ async function scrapeActiveRegattas(): Promise<void> {
       }
     } catch (err) {
       console.error(
-        `[scheduler] Error scraping regatta ${rcRegattaId}:`,
+        `[scheduler] Error syncing regatta ${rcRegattaId}:`,
         err
       );
     }
@@ -274,12 +274,12 @@ async function scrapeActiveRegattas(): Promise<void> {
 }
 
 /**
- * Start the background scrape job.
+ * Start the background sync job.
  * Call this once from src/index.ts.
  */
-export function startScrapeScheduler(): void {
+export function startSyncScheduler(): void {
   cron.schedule("* * * * *", async () => {
-    await scrapeActiveRegattas();
+    await syncActiveRegattas();
   });
 
   console.log(

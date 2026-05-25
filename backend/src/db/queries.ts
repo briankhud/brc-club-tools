@@ -562,7 +562,7 @@ export async function upsertLane(data: InsertLane): Promise<DbLane> {
 }
 
 // ---------------------------------------------------------------------------
-// Entry queries (used internally by the scrape job)
+// Entry queries (used internally by the sync job)
 // ---------------------------------------------------------------------------
 
 export async function upsertEntry(data: InsertEntry): Promise<DbEntry> {

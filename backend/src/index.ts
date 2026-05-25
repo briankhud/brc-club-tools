@@ -33,7 +33,7 @@ import {
   fetchHeatSheet,
   closeBrowser,
   type RCHeat,
-} from "./scraper/rc-client.js";
+} from "./syncer/rc-client.js";
 
 const app = new Hono();
 
@@ -132,10 +132,10 @@ function mapRace(r: DbRace, lanes: DbLaneWithDetails[]) {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory scrape status tracker (fine for single-instance MVP)
+// In-memory sync status tracker (fine for single-instance MVP)
 // ---------------------------------------------------------------------------
 
-const scrapeStatus = new Map<
+const syncStatus = new Map<
   string,
   { status: "running" | "done" | "error"; message: string; started: string }
 >();
@@ -370,9 +370,9 @@ app.post("/api/subscriptions", async (c) => {
   }
 });
 
-// POST /api/admin/scrape  [requires X-Admin-Secret header]
-// Returns 202 immediately; actual scrape runs in the background.
-app.post("/api/admin/scrape", async (c) => {
+// POST /api/admin/sync  [requires X-Admin-Secret header]
+// Returns 202 immediately; actual sync runs in the background.
+app.post("/api/admin/sync", async (c) => {
   const adminSecret = process.env.ADMIN_SECRET;
   const provided = c.req.header("X-Admin-Secret");
 
@@ -392,24 +392,24 @@ app.post("/api/admin/scrape", async (c) => {
     return c.json({ error: "job_id is required" }, 400);
   }
 
-  // Mark as running and kick off background scrape
-  scrapeStatus.set(jobId, {
+  // Mark as running and kick off background sync
+  syncStatus.set(jobId, {
     status: "running",
-    message: "Scrape in progress",
+    message: "Sync in progress",
     started: new Date().toISOString(),
   });
 
   // Fire-and-forget — do not await
-  runScrapeInBackground(jobId);
+  runSyncInBackground(jobId);
 
   return c.json(
-    { message: `Scrape started for job_id ${jobId}`, job_id: jobId },
+    { message: `Sync started for job_id ${jobId}`, job_id: jobId },
     202
   );
 });
 
-// GET /api/admin/scrape/:jobId  — poll scrape status
-app.get("/api/admin/scrape/:jobId", (c) => {
+// GET /api/admin/sync/:jobId  — poll sync status
+app.get("/api/admin/sync/:jobId", (c) => {
   const adminSecret = process.env.ADMIN_SECRET;
   const provided = c.req.header("X-Admin-Secret");
 
@@ -418,15 +418,15 @@ app.get("/api/admin/scrape/:jobId", (c) => {
   }
 
   const { jobId } = c.req.param();
-  const entry = scrapeStatus.get(jobId);
+  const entry = syncStatus.get(jobId);
   if (!entry) {
-    return c.json({ error: "No scrape found for that job_id" }, 404);
+    return c.json({ error: "No sync found for that job_id" }, 404);
   }
   return c.json({ job_id: jobId, ...entry });
 });
 
-// Background scrape worker
-async function runScrapeInBackground(jobId: string): Promise<void> {
+// Background sync worker
+async function runSyncInBackground(jobId: string): Promise<void> {
   try {
     // 1. Fetch regatta overview + upsert
     const overview = await fetchRegattaOverview(jobId);
@@ -515,20 +515,20 @@ async function runScrapeInBackground(jobId: string): Promise<void> {
 
     await closeBrowser();
 
-    const summary = `Scraped ${rcEvents.length} events, ${rcClubs.length} clubs, ${racesCount} races`;
-    console.log(`Scrape complete for job_id=${jobId}: ${summary}`);
-    scrapeStatus.set(jobId, {
+    const summary = `Synced ${rcEvents.length} events, ${rcClubs.length} clubs, ${racesCount} races`;
+    console.log(`[syncer] Sync complete for job_id=${jobId}: ${summary}`);
+    syncStatus.set(jobId, {
       status: "done",
       message: summary,
-      started: scrapeStatus.get(jobId)?.started ?? new Date().toISOString(),
+      started: syncStatus.get(jobId)?.started ?? new Date().toISOString(),
     });
   } catch (err) {
-    console.error(`Background scrape failed (job_id=${jobId}):`, err);
+    console.error(`[syncer] Background sync failed (job_id=${jobId}):`, err);
     await closeBrowser().catch(() => {});
-    scrapeStatus.set(jobId, {
+    syncStatus.set(jobId, {
       status: "error",
-      message: err instanceof Error ? err.message : "Scrape failed",
-      started: scrapeStatus.get(jobId)?.started ?? new Date().toISOString(),
+      message: err instanceof Error ? err.message : "Sync failed",
+      started: syncStatus.get(jobId)?.started ?? new Date().toISOString(),
     });
   }
 }

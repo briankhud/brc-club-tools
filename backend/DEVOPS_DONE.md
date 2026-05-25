@@ -37,7 +37,7 @@ dependencies guaranteed.
 
 Complete step-by-step Railway deploy guide. Written for a non-DevOps audience.
 Covers: CLI install, railway init, Postgres provisioning, schema migration, env vars,
-deploy command, health check, first scrape trigger, activating the regatta in DB,
+deploy command, health check, first sync trigger, activating the regatta in DB,
 pointing the Expo app at Railway, and monitoring.
 
 ### 6. `src/db/migrate.ts` — new file
@@ -56,8 +56,8 @@ modified**. The errors are pre-existing Backend Engineer work-in-progress:
 |---|---|---|
 | `src/index.ts:19` | Module `./db/queries.js` has no exported member `getLanesForRaceWithDetails` | Backend Engineer — queries.ts needs that export |
 | `src/index.ts:381` | Property `job_id` does not exist on type `{}` | Backend Engineer — Hono query typing issue |
-| `src/jobs/scrape-scheduler.ts:13` | No declaration file for `node-cron` | Backend Engineer — needs `npm i -D @types/node-cron` |
-| `src/jobs/scrape-scheduler.ts:43` | Property `length` does not exist on `RCHeatSheetResult` | Backend Engineer — type mismatch on fetchHeatSheet return value |
+| `src/jobs/sync-scheduler.ts:13` | No declaration file for `node-cron` | Backend Engineer — needs `npm i -D @types/node-cron` |
+| `src/jobs/sync-scheduler.ts:43` | Property `length` does not exist on `RCHeatSheetResult` | Backend Engineer — type mismatch on fetchHeatSheet return value |
 
 `src/db/migrate.ts` compiles cleanly.
 
@@ -87,13 +87,13 @@ names against the current Nixpkgs registry: https://search.nixos.org/packages
 **Memory ceiling:**
 
 The Railway Hobby plan gives 512 MB per service. Playwright + Chromium peaks at
-~350–400 MB during a scrape. Node.js + Hono + pg at rest uses ~50–80 MB. This leaves
+~350–400 MB during a sync. Node.js + Hono + pg at rest uses ~50–80 MB. This leaves
 ~60–110 MB headroom. Fine for MVP, but a single OOM event during peak race day will
 restart the service (Railway restarts on failure, max 3 retries per `railway.json`).
 
 If OOM becomes a problem:
 - Upgrade the Railway service to a plan with more RAM (Pro plan → configurable)
-- Or split the scraper into a separate Railway service with more memory and have it
+- Or split the syncer into a separate Railway service with more memory and have it
   write results to Postgres; the API service has no Playwright at all
 
 ### High confidence (not a concern)
@@ -119,18 +119,18 @@ If OOM becomes a problem:
 
 4. **Set env vars** in Railway dashboard — especially `ADMIN_SECRET`.
 
-5. **Wait for Backend Engineer** to finish the DB-backed routes and `POST /api/admin/scrape`
-   before triggering the first scrape. The scrape endpoint currently returns hardcoded
+5. **Wait for Backend Engineer** to finish the DB-backed routes and `POST /api/admin/sync`
+   before triggering the first sync. The sync endpoint currently returns hardcoded
    data (see ARCHITECTURE.md section 9 "Stubbed").
 
 ### On race day (once regatta is confirmed and Backend Engineer work is complete)
 
-1. Trigger first scrape:
+1. Trigger first sync:
    ```bash
    curl -X POST \
      -H "X-Admin-Secret: YOUR_SECRET" \
      -d '{"job_id":"NNNNN"}' \
-     https://YOUR-APP.up.railway.app/api/admin/scrape
+     https://YOUR-APP.up.railway.app/api/admin/sync
    ```
 
 2. Activate the regatta so the 60-second scheduler starts polling:

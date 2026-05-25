@@ -14,7 +14,7 @@
 │  /regatta/events  /regatta/clubs  /regatta/entries              │
 │  /regatta/results.jsp  + PDF race schedule bulletins            │
 └──────────────────────────────┬──────────────────────────────────┘
-                               │  Playwright + Cheerio scraper
+                               │  Playwright + Cheerio syncer
                                │  (polite: 600ms delay, browser UA)
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -22,7 +22,7 @@
 │  Railway — https://rowday-backend-production.up.railway.app     │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────────┐  ┌─────────────────┐  │
-│  │  Scraper     │  │  Scheduler       │  │  REST API       │  │
+│  │  Syncer      │  │  Scheduler       │  │  REST API       │  │
 │  │  rc-client   │  │  node-cron       │  │  Hono routes    │  │
 │  │  rc-pdf-     │  │  every 60s       │  │  /api/regattas  │  │
 │  │  parser      │  │  during racing   │  │  /api/admin     │  │
@@ -72,14 +72,14 @@ BRC/
 │   │   ├── db/
 │   │   │   ├── schema.sql   ← PostgreSQL schema (9 tables)
 │   │   │   └── client.ts    ← [MISSING] postgres connection pool
-│   │   ├── scraper/
-│   │   │   ├── rc-client.ts      ← HTML scraper (Playwright + Cheerio)
+│   │   ├── syncer/
+│   │   │   ├── rc-client.ts      ← HTML syncer (Playwright + Cheerio)
 │   │   │   ├── rc-pdf-parser.ts  ← PDF race-schedule parser
 │   │   │   ├── rc-test.ts        ← integration test against live RC
-│   │   │   ├── rc-scraping-notes.md  ← RC DOM/URL reference
+│   │   │   ├── rc-sync-notes.md  ← RC DOM/URL reference
 │   │   │   └── rc-pdf-notes.md       ← PDF text format reference
 │   │   └── jobs/
-│   │       └── scrape-scheduler.ts ← node-cron job (polls every 60s)
+│   │       └── sync-scheduler.ts ← node-cron job (polls every 60s)
 │   ├── package.json
 │   └── tsconfig.json
 │
@@ -108,7 +108,7 @@ BRC/
 
 ## 3. Data Flow
 
-### 3a. Scraping Pipeline (backend)
+### 3a. Syncing Pipeline (backend)
 
 ```
 fetchHeatSheet(jobId)
@@ -138,7 +138,7 @@ between requests.
 ### 3b. Scheduler Loop (backend)
 
 ```
-startScrapeScheduler()
+startSyncScheduler()
   └─► cron every 60s
         └─► isRacingHour()?  (7am–7pm local)
               ├─ NO  → skip
@@ -163,7 +163,7 @@ App → GET /api/regattas/:id/event/:eventId/heat/:heatId  (single heat)
 App → GET /api/regattas/:id/results  (all official results)
 App → GET /api/regattas/:id/athletes?q=  (athlete name search)
 App → POST /api/subscriptions        (register push token)
-App → POST /api/admin/scrape         (trigger one-shot scrape, admin-only)
+App → POST /api/admin/sync           (trigger one-shot sync, admin-only)
 ```
 
 ---
@@ -245,10 +245,10 @@ POST /api/subscriptions
      → { id: string }
      Upserts on (device_token, regatta_id)
 
-POST /api/admin/scrape          [requires X-Admin-Secret header]
+POST /api/admin/sync            [requires X-Admin-Secret header]
      Body or query: { job_id: string }
      → { message: string, heats: number, clubs: number, events: number }
-     Triggers a full scrape + DB seed for a new regatta
+     Triggers a full sync + DB seed for a new regatta
 ```
 
 ### Type definitions (shared between backend and app)
@@ -294,8 +294,8 @@ middleware + AsyncStorage before any real user testing.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Scraping vs official API | Scraping | RC's v3 API is decommissioned; v4 is OAuth-gated (no key). Public pages accessible to any browser — hiQ v. LinkedIn (9th Cir. 2022) confirms legality. |
-| Bot detection bypass | Playwright headless Chromium | RC returns 403 to Node.js `fetch()`. Real Chromium TLS fingerprint passes. Playwright shares a single browser instance for all scrapes. |
+| Syncing vs official API | Syncing | RC's v3 API is decommissioned; v4 is OAuth-gated (no key). Public pages accessible to any browser — hiQ v. LinkedIn (9th Cir. 2022) confirms legality. |
+| Bot detection bypass | Playwright headless Chromium | RC returns 403 to Node.js `fetch()`. Real Chromium TLS fingerprint passes. Playwright shares a single browser instance for all syncs. |
 | PDF parsing | pdf-parse@1.1.1 | Race schedule PDFs are the source of truth for heat schedules before HTML entries release. v2.x has a broken API; stick to 1.x. |
 | Mobile framework | React Native + Expo SDK 52 | Cross-platform iOS + Android from one codebase. Expo Go for zero-friction parent beta testing (QR code → app, no App Store). |
 | Navigation | expo-router v4 | File-system routing, consistent with modern Expo patterns. |
@@ -315,8 +315,8 @@ middleware + AsyncStorage before any real user testing.
 DATABASE_URL=postgresql://...    # set automatically by Railway Postgres
 PORT=3000
 NODE_ENV=development|production
-RC_REQUEST_DELAY_MS=600          # polite scraping delay
-ADMIN_SECRET=<random hex>        # protects POST /api/admin/scrape
+RC_REQUEST_DELAY_MS=600          # polite syncing delay
+ADMIN_SECRET=<random hex>        # protects POST /api/admin/sync
 ```
 
 ### App (`app/.env`)
@@ -335,8 +335,8 @@ During local development on a physical device, set to `http://<mac-LAN-IP>:3000`
 
 | Component | Evidence |
 |-----------|---------|
-| RC HTML scraper (events) | 40/40 events from CSSRA 2026 |
-| RC HTML scraper (clubs) | 131/131 clubs from CSSRA 2026 |
+| RC HTML syncer (events) | 40/40 events from CSSRA 2026 |
+| RC HTML syncer (clubs) | 131/131 clubs from CSSRA 2026 |
 | PDF race schedule parser | 194/194 races from CSSRA 2026 |
 | `fetchHeatSheet()` end-to-end | CMS check → PDF fallback → 194 races |
 | Playwright bot-detection bypass | No 403s from RC on headless Chromium |
@@ -349,10 +349,10 @@ During local development on a physical device, set to `http://<mac-LAN-IP>:3000`
 
 | File | Line(s) | Issue |
 |------|---------|-------|
-| `backend/src/index.ts` | 16–230 | All API routes return hardcoded in-memory arrays — scraper never called |
+| `backend/src/index.ts` | 16–230 | All API routes return hardcoded in-memory arrays — syncer never called |
 | `backend/src/db/client.ts` | — | File does not exist. `postgres` package installed, nothing uses it |
-| `backend/src/jobs/scrape-scheduler.ts` | 18 | `ACTIVE_REGATTA_IDS = []` — scheduler runs but never scrapes |
-| `backend/src/jobs/scrape-scheduler.ts` | 47 | `// TODO: diff + persist + notify` — the whole write path is missing |
+| `backend/src/jobs/sync-scheduler.ts` | 18 | `ACTIVE_REGATTA_IDS = []` — scheduler runs but never syncs |
+| `backend/src/jobs/sync-scheduler.ts` | 47 | `// TODO: diff + persist + notify` — the whole write path is missing |
 | `app/store/useAppStore.ts` | 42–68 | Hardcoded Brighton Burn / Nora Ashworth defaults will ship to users |
 | `app/app/onboarding.tsx` | 227 | `// TODO: requestPermissionsAsync()` — push notifications not wired |
 | `app/app/(tabs)/settings.tsx` | 43, 51, 59 | All action rows are dead-end `// TODO` comments |
@@ -366,16 +366,16 @@ During local development on a physical device, set to `http://<mac-LAN-IP>:3000`
 - `GET /api/regattas/:id/results` endpoint
 - `GET /api/regattas/:id/athletes?q=` endpoint
 - `POST /api/subscriptions` endpoint
-- `POST /api/admin/scrape` endpoint
+- `POST /api/admin/sync` endpoint
 - Push notification send path (after results come in)
 - Zustand AsyncStorage persistence
 - Age gate screen
 
 ---
 
-## 10. Scraper Reference
+## 10. Syncer Reference
 
-The scraper has two modes, documented in detail in `backend/src/scraper/`:
+The syncer has two modes, documented in detail in `backend/src/syncer/`:
 
 **HTML mode** (`rc-client.ts`):
 - All RC data pages are server-rendered HTML. Cheerio parses them after Playwright fetches.
@@ -391,7 +391,7 @@ The scraper has two modes, documented in detail in `backend/src/scraper/`:
 **Test fixture** (use for development):
 - `job_id=10115` — CSSRA Championships 2026 (St. Catharines, ON)
 - Stable assertion values: 40 events, 131 clubs, 194 races, E.L. Crossley S.S. top club (32 entries)
-- Run: `cd backend && npx tsx src/scraper/rc-test.ts`
+- Run: `cd backend && npx tsx src/syncer/rc-test.ts`
 
 ---
 
@@ -402,7 +402,7 @@ The scraper has two modes, documented in detail in `backend/src/scraper/`:
 cd backend
 npm install
 npx tsx src/index.ts          # starts on :3000
-npx tsx src/scraper/rc-test.ts  # tests scraper against live RC
+npx tsx src/syncer/rc-test.ts  # tests syncer against live RC
 
 # App
 cd app

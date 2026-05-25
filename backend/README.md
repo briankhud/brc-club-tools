@@ -8,7 +8,7 @@ Node.js + Hono API server for the RowDay rowing companion app.
 - **Framework:** [Hono](https://hono.dev) with `@hono/node-server`
 - **Database:** PostgreSQL (via `postgres` driver)
 - **Cache / pub-sub:** Redis (via `ioredis`)
-- **Scraping:** `cheerio` + `node-fetch` targeting Regatta Central
+- **Syncing:** `cheerio` + `node-fetch` targeting Regatta Central
 - **Push notifications:** `expo-server-sdk`
 
 ## Setup
@@ -53,7 +53,7 @@ The server starts on `http://localhost:3000`. Visit `/health` to confirm it's ru
 | GET | `/api/regattas/:id/club/:clubId/schedule` | Club's full heat schedule |
 | GET | `/api/regattas/:id/event/:eventId/heat/:heatId` | Heat sheet with lanes |
 
-Currently returns hardcoded seed data for **Brighton Burn 2026**. Live Regatta Central scraping is stubbed in `src/scraper/rc-client.ts`.
+Currently returns hardcoded seed data for **Brighton Burn 2026**. Live Regatta Central syncing is stubbed in `src/syncer/rc-client.ts`.
 
 ## Project Structure
 
@@ -62,8 +62,8 @@ src/
   index.ts              — Hono server + routes
   db/
     schema.sql          — PostgreSQL table definitions
-  scraper/
+  syncer/
     rc-client.ts        — Regatta Central data fetcher
   jobs/
-    scrape-scheduler.ts — cron-based polling job
+    sync-scheduler.ts   — cron-based polling job
 ```
