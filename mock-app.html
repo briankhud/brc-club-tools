@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RowDay — Regatta Companion</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #f0f4f8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    padding: 20px 0;
+  }
+
+  /* ── Phone shell ── */
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: #fff;
+    border-radius: 52px;
+    box-shadow:
+      0 30px 80px rgba(0,0,0,0.22),
+      0 0 0 1.5px rgba(0,0,0,0.08),
+      inset 0 0 0 2px rgba(255,255,255,0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    background: #1a3a5c;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 22px 0 26px;
+    flex-shrink: 0;
+    border-radius: 52px 52px 0 0;
+  }
+  .status-bar .time {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .status-bar .icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 13px;
+  }
+  .status-bar .icons svg {
+    width: 16px;
+    height: 16px;
+    fill: #fff;
+  }
+
+  /* ── Screen container ── */
+  .screens {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(30px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    overflow-y: auto;
+  }
+  .screen.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(0);
+  }
+  .screen.slide-left {
+    transform: translateX(-30px);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ── Scrollbar hide ── */
+  .screen::-webkit-scrollbar { display: none; }
+  .screen { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ── Screen headers ── */
+  .screen-header {
+    background: #1a3a5c;
+    color: #fff;
+    padding: 16px 20px 18px;
+    flex-shrink: 0;
+  }
+  .screen-header .header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .back-btn {
+    background: rgba(255,255,255,0.18);
+    border: none;
+    color: #fff;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .back-btn:active { background: rgba(255,255,255,0.3); }
+  .header-title { font-size: 17px; font-weight: 700; flex: 1; }
+  .header-subtitle { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+  .icon-btn {
+    background: rgba(255,255,255,0.18);
+    border: none;
+    color: #fff;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .icon-btn:active { background: rgba(255,255,255,0.3); }
+
+  /* ── Search input ── */
+  .search-wrap {
+    padding: 14px 16px 10px;
+    background: #fff;
+    border-bottom: 1px solid #eef2f7;
+    flex-shrink: 0;
+  }
+  .search-input {
+    width: 100%;
+    padding: 10px 14px 10px 38px;
+    border: 1.5px solid #dde3ed;
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    background: #f4f7fb url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aabbf' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") 12px 50% no-repeat;
+    color: #1a3a5c;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: #1a3a5c; background-color: #fff; }
+  .search-input::placeholder { color: #9aabbf; }
+
+  /* ── Scroll content area ── */
+  .scroll-content {
+    flex: 1;
+    padding: 12px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ── Regatta cards ── */
+  .regatta-card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(26,58,92,0.08);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 1.5px solid #eef2f7;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .regatta-card:active { transform: scale(0.98); box-shadow: 0 1px 6px rgba(26,58,92,0.1); }
+  .regatta-icon {
+    font-size: 30px;
+    width: 52px;
+    height: 52px;
+    background: #f0f4f8;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .regatta-info { flex: 1; }
+  .regatta-name { font-size: 16px; font-weight: 700; color: #1a3a5c; margin-bottom: 3px; }
+  .regatta-date { font-size: 13px; color: #5a7a9a; margin-bottom: 4px; }
+  .regatta-venue { font-size: 12px; color: #7a95aa; }
+  .regatta-location { font-size: 12px; color: #7a95aa; }
+  .regatta-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.03em;
+  }
+  .badge-upcoming { background: #e6f7ee; color: #1a7a42; }
+  .badge-active { background: #fff3e0; color: #c45800; }
+
+  /* ── Home screen branding ── */
+  .home-brand {
+    background: #1a3a5c;
+    padding: 32px 20px 28px;
+    text-align: center;
+    flex-shrink: 0;
+    border-radius: 0 0 28px 28px;
+  }
+  .brand-logo {
+    font-size: 32px;
+    font-weight: 900;
+    color: #c8a84b;
+    letter-spacing: -0.5px;
+  }
+  .brand-oar {
+    font-size: 28px;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .brand-subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.65);
+    margin-top: 4px;
+  }
+
+  .section-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #9aabbf;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 6px 0 4px;
+    padding: 0 2px;
+  }
+
+  /* ── Athlete list ── */
+  .athlete-row {
+    background: #fff;
+    border-radius: 14px;
+    padding: 13px 16px;
+    box-shadow: 0 1px 6px rgba(26,58,92,0.06);
+    cursor: pointer;
+    transition: transform 0.14s, box-shadow 0.14s;
+    border: 1.5px solid #eef2f7;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .athlete-row:active { transform: scale(0.98); }
+  .athlete-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a3a5c, #2d5f96);
+    color: #c8a84b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .athlete-info { flex: 1; }
+  .athlete-name { font-size: 15px; font-weight: 700; color: #1a3a5c; }
+  .athlete-event { font-size: 12px; color: #7a95aa; margin-top: 2px; }
+  .athlete-club {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #f0f4f8;
+    color: #5a7a9a;
+  }
+  .athlete-club.brc { background: #fff5dd; color: #8a6a00; }
+  .chevron { color: #c8d8e8; font-size: 18px; }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #9aabbf;
+  }
+  .empty-state .empty-icon { font-size: 44px; margin-bottom: 12px; }
+  .empty-state .empty-text { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: #7a95aa; }
+  .empty-state .empty-sub { font-size: 13px; }
+
+  /* ── Countdown Card ── */
+  .countdown-card {
+    margin: 14px 16px 6px;
+    border-radius: 22px;
+    padding: 22px 20px 20px;
+    color: #fff;
+    background: #1a3a5c;
+    transition: background 0.6s ease;
+    flex-shrink: 0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    position: relative;
+    overflow: hidden;
+  }
+  .countdown-card::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+  }
+  .countdown-card::after {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: -20px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+  .cd-athlete { font-size: 22px; font-weight: 800; margin-bottom: 2px; letter-spacing: -0.3px; }
+  .cd-event { font-size: 14px; color: rgba(255,255,255,0.75); margin-bottom: 16px; }
+  .cd-timer {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cd-label { font-size: 12px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+  .cd-details {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .cd-chip {
+    background: rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .cd-gold { background: rgba(200,168,75,0.35); color: #ffd86b; }
+
+  /* ── Schedule list ── */
+  .section-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px 4px;
+    flex-shrink: 0;
+  }
+  .section-title { font-size: 16px; font-weight: 800; color: #1a3a5c; }
+
+  .schedule-list {
+    padding: 4px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .sched-row {
+    background: #fff;
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1.5px solid #eef2f7;
+    box-shadow: 0 1px 5px rgba(26,58,92,0.05);
+    cursor: pointer;
+    transition: transform 0.14s;
+  }
+  .sched-row:active { transform: scale(0.98); }
+  .sched-row.done { opacity: 0.5; }
+  .sched-row.next {
+    border-color: #c8a84b;
+    box-shadow: 0 2px 12px rgba(200,168,75,0.2);
+  }
+  .sched-icon { font-size: 20px; flex-shrink: 0; }
+  .sched-info { flex: 1; }
+  .sched-name { font-size: 14px; font-weight: 700; color: #1a3a5c; }
+  .sched-time { font-size: 12px; color: #7a95aa; margin-top: 2px; }
+  .sched-badge {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+  }
+  .badge-next { background: #c8a84b; color: #fff; }
+  .badge-pending { background: #eef2f7; color: #7a95aa; }
+  .badge-done { background: #e6f7ee; color: #1a7a42; }
+
+  /* ── Heat Sheet ── */
+  .race-details-bar {
+    background: #eef2f7;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #5a7a9a;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    border-bottom: 1px solid #dde3ed;
+  }
+  .heat-table-wrap {
+    padding: 14px 16px 0;
+  }
+  .heat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .heat-table th {
+    text-align: left;
+    color: #9aabbf;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0 8px 8px;
+    border-bottom: 2px solid #eef2f7;
+  }
+  .heat-table td {
+    padding: 11px 8px;
+    border-bottom: 1px solid #f0f4f8;
+    color: #2a4a6c;
+    vertical-align: middle;
+  }
+  .heat-table tr.you-row td {
+    background: #fffbee;
+    font-weight: 700;
+    color: #1a3a5c;
+  }
+  .heat-table tr.you-row td:first-child {
+    border-left: 3px solid #c8a84b;
+    border-radius: 2px 0 0 2px;
+  }
+  .you-tag {
+    display: inline-block;
+    background: #c8a84b;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-left: 4px;
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+  }
+  .heat-table .lane-num { font-weight: 800; font-size: 15px; }
+  .heat-table .seed-time { font-variant-numeric: tabular-nums; color: #5a7a9a; }
+  .open-lane td { color: #b0c4d4; font-style: italic; }
+
+  .progression-section {
+    margin: 14px 16px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 1.5px solid #eef2f7;
+    box-shadow: 0 1px 6px rgba(26,58,92,0.05);
+  }
+  .prog-title { font-size: 13px; font-weight: 800; color: #9aabbf; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px; }
+  .prog-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .prog-row:last-child { margin-bottom: 0; }
+  .prog-arrow { color: #c8a84b; font-weight: 800; font-size: 16px; flex-shrink: 0; }
+  .prog-text { color: #2a4a6c; }
+  .prog-text strong { color: #1a3a5c; }
+
+  .heat-note {
+    margin: 0 16px 14px;
+    font-size: 12px;
+    color: #9aabbf;
+    text-align: center;
+    padding: 0 10px;
+    line-height: 1.5;
+  }
+
+  /* ── Bottom nav ── */
+  .bottom-nav {
+    background: #fff;
+    border-top: 1px solid #eef2f7;
+    height: 82px;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+    flex-shrink: 0;
+    border-radius: 0 0 52px 52px;
+    position: relative;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    padding: 4px 0;
+    border: none;
+    background: none;
+  }
+  .nav-item:active { opacity: 0.65; }
+  .nav-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .nav-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #9aabbf;
+  }
+  .nav-item.active .nav-label { color: #1a3a5c; }
+  .nav-item.active .nav-icon { filter: none; }
+  .nav-active-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #1a3a5c;
+    margin-top: 1px;
+  }
+  .watermark {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: #d0dce8;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    white-space: nowrap;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: absolute;
+    bottom: 90px;
+    left: 16px;
+    right: 16px;
+    background: #1a3a5c;
+    color: #fff;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── Tooltip ── */
+  .tooltip {
+    position: absolute;
+    top: 44px;
+    right: 12px;
+    background: #1a3a5c;
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: scale(0.9) translateY(-4px);
+    transform-origin: top right;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .tooltip::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 12px;
+    border: 6px solid transparent;
+    border-bottom-color: #1a3a5c;
+    border-top: 0;
+  }
+  .tooltip.show { opacity: 1; transform: scale(1) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span class="time" id="status-time">9:41</span>
+    <div class="icons">
+      <svg viewBox="0 0 24 24"><path d="M1 6l11 11L23 6" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24"><rect x="1" y="8" width="18" height="12" rx="2" stroke="#fff" stroke-width="2" fill="none"/><rect x="19" y="11" width="3" height="6" rx="1.5" fill="#fff"/><rect x="3" y="10" width="12" height="8" rx="1" fill="#fff"/></svg>
+    </div>
+  </div>
+
+  <!-- Screens -->
+  <div class="screens">
+
+    <!-- Screen 1: Regatta Search -->
+    <div class="screen active" id="screen-1">
+      <div class="home-brand">
+        <span class="brand-oar">🚣</span>
+        <div class="brand-logo">RowDay</div>
+        <div class="brand-subtitle">Never miss a race</div>
+      </div>
+      <div class="search-wrap">
+        <input class="search-input" id="regatta-search" type="text" placeholder="Search regattas..." autocomplete="off" />
+      </div>
+      <div class="scroll-content" id="regatta-list">
+        <div class="section-label">Regattas</div>
+        <!-- cards injected by JS -->
+      </div>
+    </div>
+
+    <!-- Screen 2: Athlete Search -->
+    <div class="screen" id="screen-2">
+      <div class="screen-header">
+        <div class="header-row">
+          <button class="back-btn" onclick="goBack(2)">←</button>
+          <div>
+            <div class="header-title" id="s2-regatta-name">Brighton Burn 2026</div>
+            <div class="header-subtitle">Find Your Athlete</div>
+          </div>
+        </div>
+      </div>
+      <div class="search-wrap">
+        <input class="search-input" id="athlete-search" type="text" placeholder="Type athlete name..." autocomplete="off" />
+      </div>
+      <div class="scroll-content" id="athlete-list">
+        <!-- rows injected by JS -->
+      </div>
+    </div>
+
+    <!-- Screen 3: Countdown -->
+    <div class="screen" id="screen-3">
+      <div class="screen-header">
+        <div class="header-row">
+          <button class="back-btn" onclick="goBack(3)">←</button>
+          <div style="flex:1">
+            <div class="header-title" id="s3-regatta-name">Brighton Burn 2026</div>
+            <div class="header-subtitle">My Athlete</div>
+          </div>
+          <button class="icon-btn" id="bell-btn" onclick="toggleTooltip()">🔔
+            <div class="tooltip" id="bell-tooltip">Alerts set for 30 min + 15 min before race ✓</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Countdown card -->
+      <div class="countdown-card" id="countdown-card">
+        <div class="cd-athlete" id="cd-name">Emma Johnson</div>
+        <div class="cd-event" id="cd-event">Novice Women's 4+</div>
+        <div class="cd-timer" id="cd-timer">2:15:00</div>
+        <div class="cd-label">until race</div>
+        <div class="cd-details">
+          <span class="cd-chip cd-gold">Heat 2 · Lane 3</span>
+          <span class="cd-chip">10:15 AM</span>
+          <span class="cd-chip">Stake Boat B</span>
+        </div>
+      </div>
+
+      <!-- Schedule -->
+      <div class="section-header-row">
+        <div class="section-title">Today's Schedule</div>
+      </div>
+      <div class="schedule-list">
+        <div class="sched-row done">
+          <span class="sched-icon">✅</span>
+          <div class="sched-info">
+            <div class="sched-name">Novice W 4+ · Heat 1</div>
+            <div class="sched-time">8:30 AM</div>
+          </div>
+          <span class="sched-badge badge-done">DNS</span>
+        </div>
+        <div class="sched-row next" onclick="goTo(4)">
+          <span class="sched-icon">🟡</span>
+          <div class="sched-info">
+            <div class="sched-name">Novice W 4+ · Heat 2</div>
+            <div class="sched-time">10:15 AM</div>
+          </div>
+          <span class="sched-badge badge-next">NEXT</span>
+        </div>
+        <div class="sched-row">
+          <span class="sched-icon">⬜</span>
+          <div class="sched-info">
+            <div class="sched-name">Novice W 4+ · Final</div>
+            <div class="sched-time">1:45 PM</div>
+          </div>
+          <span class="sched-badge badge-pending">Pending</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 4: Heat Sheet -->
+    <div class="screen" id="screen-4">
+      <div class="screen-header">
+        <div class="header-row">
+          <button class="back-btn" onclick="goBack(4)">←</button>
+          <div>
+            <div class="header-title">Novice W 4+ · Heat 2</div>
+            <div class="header-subtitle">Heat Sheet</div>
+          </div>
+        </div>
+      </div>
+      <div class="race-details-bar">
+        📅 Saturday 10:15 AM &nbsp;·&nbsp; ⚓ Stake Boat B &nbsp;·&nbsp; 📏 1500m
+      </div>
+      <div class="heat-table-wrap">
+        <table class="heat-table">
+          <thead>
+            <tr>
+              <th>Lane</th>
+              <th>Crew</th>
+              <th>Entry</th>
+              <th>Seed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lane-num">1</td>
+              <td>Lincoln Aquatic</td>
+              <td>#14</td>
+              <td class="seed-time">5:42.1</td>
+            </tr>
+            <tr>
+              <td class="lane-num">2</td>
+              <td>Riverside RC</td>
+              <td>#8</td>
+              <td class="seed-time">5:38.4</td>
+            </tr>
+            <tr class="you-row">
+              <td class="lane-num">3</td>
+              <td>Brighton RC <span class="you-tag">YOU</span></td>
+              <td>#21</td>
+              <td class="seed-time">5:45.2</td>
+            </tr>
+            <tr>
+              <td class="lane-num">4</td>
+              <td>Westfield HS</td>
+              <td>#31</td>
+              <td class="seed-time">5:51.0</td>
+            </tr>
+            <tr>
+              <td class="lane-num">5</td>
+              <td>Lakeside Prep</td>
+              <td>#17</td>
+              <td class="seed-time">5:44.8</td>
+            </tr>
+            <tr class="open-lane">
+              <td class="lane-num">6</td>
+              <td>Open</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="heat-note">Seeded by 500m erg score · Top 3 advance to Final at 1:45 PM</div>
+      <div class="progression-section">
+        <div class="prog-title">Progression</div>
+        <div class="prog-row">
+          <span class="prog-arrow">→</span>
+          <div class="prog-text"><strong>Final A (1:45 PM):</strong> Lanes 1–3</div>
+        </div>
+        <div class="prog-row">
+          <span class="prog-arrow">→</span>
+          <div class="prog-text"><strong>Final B (1:30 PM):</strong> Lanes 4–5</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /screens -->
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="handleNavClick('schedule')">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Schedule</span>
+      <div class="nav-active-dot"></div>
+    </button>
+    <button class="nav-item" onclick="handleNavClick('results')">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Results</span>
+    </button>
+    <button class="nav-item" onclick="handleNavClick('settings')">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">Settings</span>
+    </button>
+    <span class="watermark">ROWDAY</span>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+</div><!-- /phone -->
+
+<script>
+// ─────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────
+const REGATTAS = [
+  {
+    id: 'brighton-burn',
+    name: 'Brighton Burn 2026',
+    date: 'Saturday, February 28, 2026',
+    venue: 'Twelve Corners Middle School',
+    location: 'Rochester, NY',
+    status: 'Upcoming',
+    icon: '🚣'
+  },
+  {
+    id: 'riverside-spring',
+    name: 'Riverside Spring Invitational 2026',
+    date: 'Saturday, May 30, 2026',
+    venue: 'Cooper River Park',
+    location: 'Pennsauken, NJ',
+    status: 'Upcoming',
+    icon: '🚣'
+  }
+];
+
+const ATHLETES = {
+  'brighton-burn': [
+    { name: 'Emma Johnson',  event: "Novice Women's 4+", club: 'BRC' },
+    { name: 'Emma Rodriguez',name2: true, event: "JV Women's 2x",     club: 'Brighton HS' },
+    { name: 'Jack Hudson',   event: "Novice Men's 4+",   club: 'BRC' },
+    { name: 'Jack Thompson', event: "Varsity Men's 8+",  club: 'Brighton HS' },
+    { name: 'Sarah Chen',    event: "Novice Women's 1x", club: 'BRC' },
+    { name: 'Michael Davis', event: "JV Men's 4+",       club: 'BRC' },
+    { name: 'Lily Park',     event: "Varsity Women's 8+",club: 'BRC' },
+    { name: 'Tom Wilson',    event: "Novice Men's 4+",   club: 'BRC' }
+  ],
+  'riverside-spring': [
+    { name: 'Alex Rivera',   event: "Varsity Men's 8+",  club: 'Riverside RC' },
+    { name: 'Mia Torres',    event: "JV Women's 4+",     club: 'Riverside RC' }
+  ]
+};
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let currentScreen = 1;
+let currentRegattaId = null;
+let countdownTarget = null;
+let countdownInterval = null;
+let tooltipVisible = false;
+let tooltipTimer = null;
+
+// ─────────────────────────────────────────────
+// STATUS BAR CLOCK
+// ─────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  let h = now.getHours(), m = now.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  document.getElementById('status-time').textContent = h + ':' + String(m).padStart(2,'0') + ' ' + ampm;
+}
+updateClock();
+setInterval(updateClock, 10000);
+
+// ─────────────────────────────────────────────
+// SCREEN NAV
+// ─────────────────────────────────────────────
+function goTo(num) {
+  const prev = document.getElementById('screen-' + currentScreen);
+  const next = document.getElementById('screen-' + num);
+  prev.classList.remove('active');
+  prev.classList.add('slide-left');
+  setTimeout(() => prev.classList.remove('slide-left'), 300);
+  next.classList.add('active');
+  currentScreen = num;
+}
+
+function goBack(from) {
+  const prev = document.getElementById('screen-' + from);
+  const target = from - 1;
+  const next = document.getElementById('screen-' + target);
+  prev.classList.remove('active');
+  next.style.transition = 'none';
+  next.classList.add('active');
+  next.style.transform = 'translateX(0)';
+  setTimeout(() => { next.style.transition = ''; }, 20);
+  currentScreen = target;
+  if (from === 3 && countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+}
+
+// ─────────────────────────────────────────────
+// REGATTA CARDS
+// ─────────────────────────────────────────────
+function renderRegattas(list) {
+  const container = document.getElementById('regatta-list');
+  const label = container.querySelector('.section-label');
+  // Remove old cards
+  [...container.querySelectorAll('.regatta-card, .empty-state')].forEach(el => el.remove());
+
+  if (list.length === 0) {
+    const q = document.getElementById('regatta-search').value;
+    container.insertAdjacentHTML('beforeend', `
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">No regattas found</div>
+        <div class="empty-sub">No results for "${q}"</div>
+      </div>`);
+    return;
+  }
+
+  list.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'regatta-card';
+    card.innerHTML = `
+      <div class="regatta-icon">${r.icon}</div>
+      <div class="regatta-info">
+        <div class="regatta-name">${r.name}</div>
+        <div class="regatta-date">${r.date}</div>
+        <div class="regatta-venue">${r.venue}</div>
+        <div class="regatta-location">📍 ${r.location}</div>
+        <div class="regatta-meta">
+          <span class="badge badge-upcoming">${r.status}</span>
+        </div>
+      </div>`;
+    card.addEventListener('click', () => selectRegatta(r));
+    container.appendChild(card);
+  });
+}
+
+document.getElementById('regatta-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  const filtered = REGATTAS.filter(r =>
+    r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q)
+  );
+  renderRegattas(filtered);
+});
+
+function selectRegatta(r) {
+  currentRegattaId = r.id;
+  document.getElementById('s2-regatta-name').textContent = r.name;
+  document.getElementById('athlete-search').value = '';
+  renderAthletes(ATHLETES[r.id] || []);
+  goTo(2);
+}
+
+// ─────────────────────────────────────────────
+// ATHLETE ROWS
+// ─────────────────────────────────────────────
+function getInitials(name) {
+  return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0,2);
+}
+
+function renderAthletes(list) {
+  const container = document.getElementById('athlete-list');
+  container.innerHTML = '<div class="section-label">Athletes</div>';
+
+  if (list.length === 0) {
+    const q = document.getElementById('athlete-search').value;
+    container.insertAdjacentHTML('beforeend', `
+      <div class="empty-state">
+        <div class="empty-icon">🚣</div>
+        <div class="empty-text">No athletes found</div>
+        <div class="empty-sub">No results for "${q}"</div>
+      </div>`);
+    return;
+  }
+
+  list.forEach(a => {
+    const row = document.createElement('div');
+    row.className = 'athlete-row';
+    const isBRC = a.club === 'BRC';
+    row.innerHTML = `
+      <div class="athlete-avatar">${getInitials(a.name)}</div>
+      <div class="athlete-info">
+        <div class="athlete-name">${a.name}</div>
+        <div class="athlete-event">${a.event}</div>
+      </div>
+      <span class="athlete-club ${isBRC ? 'brc' : ''}">${a.club}</span>
+      <span class="chevron">›</span>`;
+    row.addEventListener('click', () => selectAthlete(a));
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('athlete-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  const source = ATHLETES[currentRegattaId] || [];
+  const filtered = source.filter(a =>
+    a.name.toLowerCase().includes(q) ||
+    a.club.toLowerCase().includes(q) ||
+    a.event.toLowerCase().includes(q)
+  );
+  renderAthletes(filtered);
+});
+
+function selectAthlete(a) {
+  document.getElementById('cd-name').textContent = a.name;
+  document.getElementById('cd-event').textContent = a.event;
+  const regatta = REGATTAS.find(r => r.id === currentRegattaId);
+  document.getElementById('s3-regatta-name').textContent = regatta ? regatta.name : '';
+
+  // Set countdown to 2h15m from now
+  const now = Date.now();
+  countdownTarget = now + (2 * 60 + 15) * 60 * 1000;
+  updateCountdown();
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(updateCountdown, 1000);
+
+  goTo(3);
+}
+
+// ─────────────────────────────────────────────
+// COUNTDOWN TIMER
+// ─────────────────────────────────────────────
+function updateCountdown() {
+  const now = Date.now();
+  const diff = Math.max(0, Math.floor((countdownTarget - now) / 1000));
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+  const label = h > 0
+    ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+    : `${m}:${String(s).padStart(2,'0')}`;
+  document.getElementById('cd-timer').textContent = label;
+
+  const card = document.getElementById('countdown-card');
+  const minutes = diff / 60;
+  if (minutes > 60) {
+    card.style.background = '#1a3a5c';
+  } else if (minutes > 30) {
+    card.style.background = '#1a5c3a';
+  } else if (minutes > 10) {
+    card.style.background = '#8a6000';
+  } else {
+    card.style.background = '#8a1a1a';
+  }
+
+  if (diff === 0) {
+    clearInterval(countdownInterval);
+    document.getElementById('cd-timer').textContent = '0:00';
+  }
+}
+
+// ─────────────────────────────────────────────
+// TOOLTIP
+// ─────────────────────────────────────────────
+function toggleTooltip() {
+  const tip = document.getElementById('bell-tooltip');
+  tooltipVisible = !tooltipVisible;
+  if (tooltipVisible) {
+    tip.classList.add('show');
+    if (tooltipTimer) clearTimeout(tooltipTimer);
+    tooltipTimer = setTimeout(() => {
+      tip.classList.remove('show');
+      tooltipVisible = false;
+    }, 3000);
+  } else {
+    tip.classList.remove('show');
+  }
+}
+
+// ─────────────────────────────────────────────
+// BOTTOM NAV / TOAST
+// ─────────────────────────────────────────────
+function handleNavClick(tab) {
+  if (tab === 'schedule') {
+    // Go home
+    [2,3,4].forEach(n => {
+      const s = document.getElementById('screen-'+n);
+      s.classList.remove('active', 'slide-left');
+    });
+    const s1 = document.getElementById('screen-1');
+    s1.classList.remove('slide-left');
+    s1.classList.add('active');
+    currentScreen = 1;
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  } else {
+    const msg = tab === 'results' ? '🏆 Results — coming soon!' : '⚙️ Settings — coming soon!';
+    showToast(msg);
+  }
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderRegattas(REGATTAS);
+</script>
+</body>
+</html>
