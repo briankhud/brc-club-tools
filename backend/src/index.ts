@@ -427,9 +427,21 @@ app.get("/api/admin/sync/:jobId", (c) => {
 
 // Background sync worker
 async function runSyncInBackground(jobId: string): Promise<void> {
+  /** Update both the console and the in-memory status map atomically. */
+  const step = (msg: string) => {
+    console.log(`[syncer] job_id=${jobId} — ${msg}`);
+    syncStatus.set(jobId, {
+      status: "running",
+      message: msg,
+      started: syncStatus.get(jobId)?.started ?? new Date().toISOString(),
+    });
+  };
+
   try {
     // 1. Fetch regatta overview + upsert
+    step("fetching regatta overview");
     const overview = await fetchRegattaOverview(jobId);
+    step("upserting regatta");
     const regatta = await upsertRegatta({
       rc_regatta_id: jobId,
       name: overview.name ?? `Regatta ${jobId}`,
@@ -442,7 +454,9 @@ async function runSyncInBackground(jobId: string): Promise<void> {
     });
 
     // 2. Fetch + upsert events
+    step("fetching events");
     const rcEvents = await fetchEvents(jobId);
+    step(`upserting ${rcEvents.length} events`);
     const upsertedEvents: Array<{ id: string; event_num: string }> = [];
     for (let i = 0; i < rcEvents.length; i++) {
       const rce = rcEvents[i];
@@ -457,7 +471,9 @@ async function runSyncInBackground(jobId: string): Promise<void> {
     }
 
     // 3. Fetch + upsert clubs
+    step("fetching clubs");
     const rcClubs = await fetchClubs(jobId);
+    step(`upserting ${rcClubs.length} clubs`);
     const clubMap = new Map<string, string>(); // alias → DB id
     for (const rcClub of rcClubs) {
       const club = await upsertClub({
@@ -476,8 +492,10 @@ async function runSyncInBackground(jobId: string): Promise<void> {
     const eventNumMap = new Map(upsertedEvents.map((e) => [e.event_num, e.id]));
 
     // 4. Fetch heat sheet → upsert races + lanes
+    step("fetching heat sheet");
     const heatSheetResult = await fetchHeatSheet(jobId);
     const rcHeats: RCHeat[] = heatSheetResult.heats;
+    step(`upserting ${rcHeats.length} races`);
 
     let racesCount = 0;
     for (let hi = 0; hi < rcHeats.length; hi++) {
@@ -494,6 +512,8 @@ async function runSyncInBackground(jobId: string): Promise<void> {
         display_order: hi + 1,
       });
       racesCount++;
+
+      if (hi % 25 === 0) step(`upserting races (${hi}/${rcHeats.length})`);
 
       for (const rcLane of heat.lanes) {
         const clubId = clubMap.get(rcLane.club) ?? null;
@@ -513,6 +533,7 @@ async function runSyncInBackground(jobId: string): Promise<void> {
       }
     }
 
+    step("closing browser");
     await closeBrowser();
 
     const summary = `Synced ${rcEvents.length} events, ${rcClubs.length} clubs, ${racesCount} races`;

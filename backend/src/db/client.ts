@@ -13,4 +13,8 @@ export const sql = postgres(process.env.DATABASE_URL, {
   ssl: needsSsl ? { rejectUnauthorized: false } : false,
   max: 10,
   idle_timeout: 30,
+  connect_timeout: 10,   // fail fast if DB unreachable (seconds)
+  // Per-query timeout — a hung upsert won't block forever
+  // (postgres.js uses the PostgreSQL `statement_timeout` session variable)
+  connection: { statement_timeout: 15000 },
 });
