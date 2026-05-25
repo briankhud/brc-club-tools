@@ -429,6 +429,19 @@ app.get("/api/admin/sync/:jobId", (c) => {
   return c.json({ job_id: jobId, ...entry });
 });
 
+/** JS-level timeout — works regardless of DB proxy config. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`DB timeout after ${ms}ms at: ${label}`)),
+        ms
+      )
+    ),
+  ]);
+}
+
 // Background sync worker
 async function runSyncInBackground(jobId: string): Promise<void> {
   /** Update both the console and the in-memory status map atomically. */
@@ -441,21 +454,26 @@ async function runSyncInBackground(jobId: string): Promise<void> {
     });
   };
 
+  const DB_TIMEOUT = 12_000; // 12s JS-level timeout per DB call
+
   try {
     // 1. Fetch regatta overview + upsert
     step("fetching regatta overview");
     const overview = await fetchRegattaOverview(jobId);
     step("upserting regatta");
-    const regatta = await upsertRegatta({
-      rc_regatta_id: jobId,
-      name: overview.name ?? `Regatta ${jobId}`,
-      start_date: overview.start_date ?? new Date().toISOString().slice(0, 10),
-      end_date: overview.end_date ?? new Date().toISOString().slice(0, 10),
-      venue: overview.venue ?? null,
-      city: overview.city ?? null,
-      state: overview.state ?? null,
-      status: "upcoming",
-    });
+    const regatta = await withTimeout(
+      upsertRegatta({
+        rc_regatta_id: jobId,
+        name: overview.name ?? `Regatta ${jobId}`,
+        start_date: overview.start_date ?? new Date().toISOString().slice(0, 10),
+        end_date: overview.end_date ?? new Date().toISOString().slice(0, 10),
+        venue: overview.venue ?? null,
+        city: overview.city ?? null,
+        state: overview.state ?? null,
+        status: "upcoming",
+      }),
+      DB_TIMEOUT, "upsertRegatta"
+    );
 
     // 2. Fetch + upsert events
     step("fetching events");
@@ -464,13 +482,16 @@ async function runSyncInBackground(jobId: string): Promise<void> {
     const upsertedEvents: Array<{ id: string; event_num: string }> = [];
     for (let i = 0; i < rcEvents.length; i++) {
       const rce = rcEvents[i];
-      const ev = await upsertEvent({
-        regatta_id: regatta.id,
-        rc_event_id: `${jobId}-event-${rce.event_num}`,
-        event_number: parseInt(rce.event_num, 10) || null,
-        name: rce.name,
-        display_order: i + 1,
-      });
+      const ev = await withTimeout(
+        upsertEvent({
+          regatta_id: regatta.id,
+          rc_event_id: `${jobId}-event-${rce.event_num}`,
+          event_number: parseInt(rce.event_num, 10) || null,
+          name: rce.name,
+          display_order: i + 1,
+        }),
+        DB_TIMEOUT, `upsertEvent #${rce.event_num}`
+      );
       upsertedEvents.push({ id: ev.id, event_num: rce.event_num });
     }
 
@@ -480,14 +501,17 @@ async function runSyncInBackground(jobId: string): Promise<void> {
     step(`upserting ${rcClubs.length} clubs`);
     const clubMap = new Map<string, string>(); // alias → DB id
     for (const rcClub of rcClubs) {
-      const club = await upsertClub({
-        rc_org_id: `${jobId}-club-${rcClub.club_id}`,
-        name: rcClub.name,
-        short_name: rcClub.alias || rcClub.code || null,
-        city: rcClub.city ?? null,
-        state: rcClub.state ?? null,
-        country: rcClub.country ?? "USA",
-      });
+      const club = await withTimeout(
+        upsertClub({
+          rc_org_id: `${jobId}-club-${rcClub.club_id}`,
+          name: rcClub.name,
+          short_name: rcClub.alias || rcClub.code || null,
+          city: rcClub.city ?? null,
+          state: rcClub.state ?? null,
+          country: rcClub.country ?? "USA",
+        }),
+        DB_TIMEOUT, `upsertClub ${rcClub.alias}`
+      );
       clubMap.set(rcClub.alias, club.id);
       clubMap.set(rcClub.code, club.id);
     }
@@ -507,33 +531,42 @@ async function runSyncInBackground(jobId: string): Promise<void> {
       const eventId = eventNumMap.get(heat.event_num);
       if (!eventId) continue;
 
-      const race = await upsertRace({
-        event_id: eventId,
-        rc_race_id: heat.race_id,
-        stage_name: heat.stage,
-        display_number: `${heat.event_num}${heat.stage}`,
-        scheduled_start: heat.scheduled_start ?? null,
-        display_order: hi + 1,
-      });
+      const race = await withTimeout(
+        upsertRace({
+          event_id: eventId,
+          rc_race_id: heat.race_id,
+          stage_name: heat.stage,
+          display_number: `${heat.event_num}${heat.stage}`,
+          scheduled_start: heat.scheduled_start ?? null,
+          display_order: hi + 1,
+        }),
+        DB_TIMEOUT, `upsertRace ${heat.race_id}`
+      );
       racesCount++;
 
       if (hi % 25 === 0) step(`upserting races (${hi}/${rcHeats.length})`);
 
       for (const rcLane of heat.lanes) {
         const clubId = clubMap.get(rcLane.club) ?? null;
-        const entry = await upsertEntry({
-          event_id: eventId,
-          club_id: clubId,
-          entry_name: rcLane.entry_name,
-        });
+        const entry = await withTimeout(
+          upsertEntry({
+            event_id: eventId,
+            club_id: clubId,
+            entry_name: rcLane.entry_name,
+          }),
+          DB_TIMEOUT, `upsertEntry ${rcLane.entry_name}`
+        );
         if (!entry) continue;
 
-        await upsertLane({
-          race_id: race.id,
-          entry_id: entry.id,
-          lane_number: rcLane.lane,
-          time_ms: rcLane.seed_time ? parseTimeToMs(rcLane.seed_time) : null,
-        });
+        await withTimeout(
+          upsertLane({
+            race_id: race.id,
+            entry_id: entry.id,
+            lane_number: rcLane.lane,
+            time_ms: rcLane.seed_time ? parseTimeToMs(rcLane.seed_time) : null,
+          }),
+          DB_TIMEOUT, `upsertLane ${race.id}/${rcLane.lane}`
+        );
       }
     }
 
